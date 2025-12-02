@@ -1,0 +1,51 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: repobox-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    image: node:20-alpine
+    container_name: repobox-web
+    working_dir: /app
+    ports:
+      - "3000:3000"
+    volumes:
+      # Mount entire project - node_modules will be created here for IDE
+      - ..:/app
+    environment:
+      - NODE_ENV=development
+    env_file:
+      - ../.env
+    command: sh -c "corepack enable && corepack prepare pnpm@9.14.4 --activate && pnpm install && pnpm dev"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  runner:
+    build:
+      context: ../apps/runner
+      dockerfile: Dockerfile
+    container_name: repobox-runner
+    env_file:
+      - ../.env
+    environment:
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - runner-temp:/tmp/repobox
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  redis-data:
+  runner-temp:

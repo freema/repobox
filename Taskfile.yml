@@ -1,0 +1,103 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: '3'
+
+vars:
+  COMPOSE_FILE: docker/docker-compose.dev.yml
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+
+  # === Development ===
+  dev:
+    desc: Start all services (Redis + Web + Runner)
+    cmds:
+      - docker compose -f {{.COMPOSE_FILE}} up
+
+  dev:web:
+    desc: Start Redis + Web only
+    cmds:
+      - docker compose -f {{.COMPOSE_FILE}} up redis web
+
+  dev:runner:
+    desc: Start Redis + Runner only
+    cmds:
+      - docker compose -f {{.COMPOSE_FILE}} up redis runner
+
+  dev:bg:
+    desc: Start all services in background
+    cmds:
+      - docker compose -f {{.COMPOSE_FILE}} up -d
+
+  # === Stop/Clean ===
+  stop:
+    desc: Stop all containers
+    cmds:
+      - docker compose -f {{.COMPOSE_FILE}} down
+
+  clean:
+    desc: Stop containers and remove volumes
+    cmds:
+      - docker compose -f {{.COMPOSE_FILE}} down -v
+
+  # === Build ===
+  build:
+    desc: Build all services
+    cmds:
+      - docker compose -f {{.COMPOSE_FILE}} build
+
+  build:runner:
+    desc: Rebuild Go runner
+    cmds:
+      - docker compose -f {{.COMPOSE_FILE}} build runner
+
+  # === Logs ===
+  logs:
+    desc: Show logs from all services
+    cmds:
+      - docker compose -f {{.COMPOSE_FILE}} logs -f
+
+  logs:web:
+    desc: Show web logs
+    cmds:
+      - docker logs -f repobox-web
+
+  logs:runner:
+    desc: Show runner logs
+    cmds:
+      - docker logs -f repobox-runner
+
+  # === Commands in container ===
+  pnpm:
+    desc: Run pnpm command in web container (usage - task pnpm -- install)
+    cmds:
+      - docker compose -f {{.COMPOSE_FILE}} exec web pnpm {{.CLI_ARGS}}
+
+  sh:
+    desc: Open shell in web container
+    cmds:
+      - docker compose -f {{.COMPOSE_FILE}} exec web sh
+
+  # === Code quality ===
+  lint:
+    desc: Run linting
+    cmds:
+      - docker compose -f {{.COMPOSE_FILE}} exec web pnpm lint
+
+  typecheck:
+    desc: Run TypeScript type checking
+    cmds:
+      - docker compose -f {{.COMPOSE_FILE}} exec web pnpm type-check
+
+  test:
+    desc: Run tests
+    cmds:
+      - docker compose -f {{.COMPOSE_FILE}} exec web pnpm test
+
+  # === Status ===
+  ps:
+    desc: Show running containers
+    cmds:
+      - docker compose -f {{.COMPOSE_FILE}} ps
