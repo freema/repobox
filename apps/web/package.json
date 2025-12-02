@@ -7,12 +7,20 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "type-check": "tsc --noEmit"
+    "lint:fix": "next lint --fix",
+    "type-check": "tsc --noEmit",
+    "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
+    "test": "vitest",
+    "test:run": "vitest run"
   },
   "dependencies": {
+    "ioredis": "^5.8.2",
     "next": "^15",
+    "next-auth": "5.0.0-beta.30",
     "react": "^19",
-    "react-dom": "^19"
+    "react-dom": "^19",
+    "zod": "^4.1.13"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -21,7 +29,9 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "^15",
+    "prettier": "^3.7.3",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.0.15"
   }
 }

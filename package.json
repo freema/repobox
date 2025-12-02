@@ -7,8 +7,12 @@
     "dev": "turbo dev",
     "build": "turbo build",
     "lint": "turbo lint",
+    "lint:fix": "turbo lint:fix",
     "test": "turbo test",
     "type-check": "turbo type-check",
+    "format": "turbo format",
+    "format:check": "turbo format:check",
+    "check": "turbo type-check lint format:check",
     "clean": "turbo clean && rm -rf node_modules"
   },
   "devDependencies": {

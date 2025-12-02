@@ -81,15 +81,35 @@ tasks:
       - docker compose -f {{.COMPOSE_FILE}} exec web sh
 
   # === Code quality ===
+  check:
+    desc: Run all checks (typecheck, lint, format)
+    cmds:
+      - docker compose -f {{.COMPOSE_FILE}} exec web pnpm check
+
   lint:
     desc: Run linting
     cmds:
       - docker compose -f {{.COMPOSE_FILE}} exec web pnpm lint
 
+  lint:fix:
+    desc: Run linting with auto-fix
+    cmds:
+      - docker compose -f {{.COMPOSE_FILE}} exec web pnpm lint:fix
+
   typecheck:
     desc: Run TypeScript type checking
     cmds:
       - docker compose -f {{.COMPOSE_FILE}} exec web pnpm type-check
+
+  format:
+    desc: Format code with Prettier
+    cmds:
+      - docker compose -f {{.COMPOSE_FILE}} exec web pnpm format
+
+  format:check:
+    desc: Check code formatting
+    cmds:
+      - docker compose -f {{.COMPOSE_FILE}} exec web pnpm format:check
 
   test:
     desc: Run tests

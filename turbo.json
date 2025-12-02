@@ -13,12 +13,20 @@
     "lint": {
       "dependsOn": ["^build"]
     },
+    "lint:fix": {
+      "dependsOn": ["^build"],
+      "cache": false
+    },
     "test": {
       "dependsOn": ["^build"]
     },
     "type-check": {
       "dependsOn": ["^build"]
     },
+    "format": {
+      "cache": false
+    },
+    "format:check": {},
     "clean": {
       "cache": false
     }
