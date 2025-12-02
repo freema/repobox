@@ -1,0 +1,87 @@
+# Configuration Reference
+
+All configuration is done via environment variables. Copy `.env.example` to `.env` and fill in values.
+
+## Web App
+
+### Authentication
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `GITHUB_OAUTH_CLIENT_ID` | For GitHub auth | GitHub OAuth app ID |
+| `GITHUB_OAUTH_CLIENT_SECRET` | For GitHub auth | GitHub OAuth app secret |
+| `GOOGLE_OAUTH_CLIENT_ID` | For Google auth | Google OAuth client ID |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | For Google auth | Google OAuth secret |
+| `LDAP_URL` | For LDAP auth | LDAP server URL |
+| `LDAP_BIND_DN` | For LDAP auth | Bind DN for LDAP |
+| `LDAP_BIND_PASSWORD` | For LDAP auth | Bind password |
+| `LDAP_SEARCH_BASE` | For LDAP auth | User search base |
+| `LDAP_USER_FILTER` | For LDAP auth | User filter template |
+
+### Session & Security
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `SESSION_SECRET` | Yes | - | Secret for session signing |
+| `SESSION_MAX_AGE` | No | `604800` | Session duration (seconds, 7 days) |
+| `ENCRYPTION_KEY` | Yes | - | 32-byte key for AES-256-GCM |
+
+### Database
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `REDIS_URL` | No | `redis://localhost:6379` | Redis connection URL |
+
+### App
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `NEXT_PUBLIC_APP_URL` | No | `http://localhost:3000` | Public app URL |
+
+## Go Runner
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `REDIS_URL` | No | `redis://localhost:6379` | Redis connection |
+| `ENCRYPTION_KEY` | Yes | - | Must match web app |
+| `RUNNER_ID` | No | `runner-1` | Unique runner ID |
+| `MAX_CONCURRENT_JOBS` | No | `10` | Worker pool size |
+| `MAX_JOBS_PER_USER` | No | `3` | Per-user job limit |
+| `JOB_TIMEOUT` | No | `3600` | Job timeout (seconds) |
+| `TEMP_DIR` | No | `/tmp/repobox` | Git clone directory |
+| `CLEANUP_AFTER_JOB` | No | `true` | Delete temp after job |
+
+## AI Agent (Phase 07)
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `ANTHROPIC_API_KEY` | Yes | Claude API key |
+
+## Generating Keys
+
+### Encryption Key (32 bytes)
+
+```bash
+# Hex format (64 chars)
+openssl rand -hex 32
+
+# Base64 format (44 chars)
+openssl rand -base64 32
+```
+
+### Session Secret
+
+```bash
+openssl rand -base64 32
+```
+
+## Docker Override
+
+In `docker-compose.dev.yml`, the runner uses:
+
+```yaml
+environment:
+  - REDIS_URL=redis://redis:6379  # Internal Docker network
+```
+
+This overrides `.env` for container networking.

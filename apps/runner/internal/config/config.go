@@ -1,29 +1,40 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"time"
 )
 
 type Config struct {
-	RunnerID        string
-	RedisURL        string
-	TempDir         string
-	CleanupAfterJob bool
-	JobTimeout      time.Duration
-	EncryptionKey   string
+	RunnerID          string
+	RedisURL          string
+	TempDir           string
+	CleanupAfterJob   bool
+	JobTimeout        time.Duration
+	EncryptionKey     string
+	MaxConcurrentJobs int
+	MaxJobsPerUser    int
 }
 
 func Load() (*Config, error) {
-	return &Config{
-		RunnerID:        getEnv("RUNNER_ID", "runner-1"),
-		RedisURL:        getEnv("REDIS_URL", "redis://localhost:6379"),
-		TempDir:         getEnv("TEMP_DIR", "/tmp/repobox"),
-		CleanupAfterJob: getEnvBool("CLEANUP_AFTER_JOB", true),
-		JobTimeout:      time.Duration(getEnvInt("JOB_TIMEOUT", 3600)) * time.Second,
-		EncryptionKey:   getEnv("ENCRYPTION_KEY", ""),
-	}, nil
+	cfg := &Config{
+		RunnerID:          getEnv("RUNNER_ID", "runner-1"),
+		RedisURL:          getEnv("REDIS_URL", "redis://localhost:6379"),
+		TempDir:           getEnv("TEMP_DIR", "/tmp/repobox"),
+		CleanupAfterJob:   getEnvBool("CLEANUP_AFTER_JOB", true),
+		JobTimeout:        time.Duration(getEnvInt("JOB_TIMEOUT", 3600)) * time.Second,
+		EncryptionKey:     getEnv("ENCRYPTION_KEY", ""),
+		MaxConcurrentJobs: getEnvInt("MAX_CONCURRENT_JOBS", 10),
+		MaxJobsPerUser:    getEnvInt("MAX_JOBS_PER_USER", 3),
+	}
+
+	if cfg.EncryptionKey == "" {
+		return nil, fmt.Errorf("ENCRYPTION_KEY is required")
+	}
+
+	return cfg, nil
 }
 
 func getEnv(key, defaultValue string) string {
