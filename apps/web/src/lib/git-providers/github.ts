@@ -1,9 +1,4 @@
-import type {
-  GitProvider,
-  Repository,
-  VerifyTokenResult,
-  MergeRequestResult,
-} from "./types";
+import type { GitProvider, Repository, VerifyTokenResult, MergeRequestResult } from "./types";
 
 interface GitHubRepo {
   id: number;
@@ -53,11 +48,7 @@ export class GitHubProvider implements GitProvider {
     }
   }
 
-  private async fetch<T>(
-    endpoint: string,
-    token: string,
-    options: RequestInit = {}
-  ): Promise<T> {
+  private async fetch<T>(endpoint: string, token: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.apiUrl}${endpoint}`;
 
     const response = await fetch(url, {

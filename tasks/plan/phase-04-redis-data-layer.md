@@ -19,23 +19,23 @@ Implement typed repositories and utilities for all Redis stored entities plus jo
 
 ## Work items
 ### 4.1 Redis client
-- [ ] Configure ioredis with retry strategy (`Math.min(times * 50, 2000)`).
-- [ ] Global error handling + metrics hooks stub.
+- [x] Configure ioredis with retry strategy (`Math.min(times * 50, 2000)`).
+- [x] Global error handling + metrics hooks stub.
 
 ### 4.2 Repository pattern
-- [ ] `UserRepository`, `SessionRepository`, `GitProviderRepository`, `JobRepository`.
-- [ ] Serialization helpers converting between JS objects and Redis hashes.
-- [ ] Batch fetching with pipelines where needed.
+- [x] `UserRepository`, `SessionRepository`, `GitProviderRepository`, `JobRepository`.
+- [x] Serialization helpers converting between JS objects and Redis hashes.
+- [x] Batch fetching with pipelines where needed.
 
 ### 4.3 Redis streams
-- [ ] `jobs:stream` XADD helper triggered from job creation API.
-- [ ] Consumer group utilities (for Go runner it will use go-redis but define schema here).
-- [ ] Job output stream per job (`job:{id}:output`).
+- [x] `jobs:stream` XADD helper triggered from job creation API.
+- [x] Consumer group utilities (for Go runner it will use go-redis but define schema here).
+- [x] Job output stream per job (`job:{id}:output`).
 
 ### 4.4 Indexes
-- [ ] Sorted set `jobs:user:{userId}` for history.
-- [ ] Set `git_providers:{userId}` referencing provider ids.
-- [ ] Document TTL strategy where applicable (sessions).
+- [x] Sorted set `jobs:user:{userId}` for history.
+- [x] Set `git_providers:{userId}` referencing provider ids.
+- [x] Document TTL strategy where applicable (sessions).
 
 ## Technical notes
 - Keep repository interfaces framework agnostic to reuse from API routes and server actions.
@@ -46,10 +46,10 @@ Implement typed repositories and utilities for all Redis stored entities plus jo
 - Phase 01 (shared types package, base project structure).
 
 ## Acceptance criteria
-- [ ] Repositories support create/read/update/delete per schema.
-- [ ] Job enqueue helper writes to stream + sorted set.
-- [ ] Job output helper writes to `job:{id}:output`.
-- [ ] Unit tests cover serialization/deserialization edge cases.
+- [x] Repositories support create/read/update/delete per schema.
+- [x] Job enqueue helper writes to stream + sorted set.
+- [x] Job output helper writes to `job:{id}:output`.
+- [x] Unit tests cover serialization/deserialization edge cases.
 
 ## References
 - `tasks/SPEC.MD#Data-Model`

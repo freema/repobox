@@ -50,19 +50,14 @@ export function encrypt(plaintext: string): string {
     authTagLength: AUTH_TAG_LENGTH,
   });
 
-  const encrypted = Buffer.concat([
-    cipher.update(plaintext, "utf8"),
-    cipher.final(),
-  ]);
+  const encrypted = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
 
   const authTag = cipher.getAuthTag();
 
   // Format: iv:authTag:ciphertext
-  return [
-    iv.toString("base64"),
-    authTag.toString("base64"),
-    encrypted.toString("base64"),
-  ].join(":");
+  return [iv.toString("base64"), authTag.toString("base64"), encrypted.toString("base64")].join(
+    ":"
+  );
 }
 
 /**
@@ -88,9 +83,7 @@ export function decrypt(encryptedData: string): string {
   }
 
   if (authTag.length !== AUTH_TAG_LENGTH) {
-    throw new Error(
-      `Invalid auth tag length: expected ${AUTH_TAG_LENGTH}, got ${authTag.length}`
-    );
+    throw new Error(`Invalid auth tag length: expected ${AUTH_TAG_LENGTH}, got ${authTag.length}`);
   }
 
   const decipher = createDecipheriv(ALGORITHM, key, iv, {
@@ -99,10 +92,7 @@ export function decrypt(encryptedData: string): string {
 
   decipher.setAuthTag(authTag);
 
-  const decrypted = Buffer.concat([
-    decipher.update(ciphertext),
-    decipher.final(),
-  ]);
+  const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
 
   return decrypted.toString("utf8");
 }

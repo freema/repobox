@@ -1,9 +1,4 @@
-import type {
-  GitProvider,
-  Repository,
-  VerifyTokenResult,
-  MergeRequestResult,
-} from "./types";
+import type { GitProvider, Repository, VerifyTokenResult, MergeRequestResult } from "./types";
 
 interface GitLabProject {
   id: number;
@@ -41,11 +36,7 @@ export class GitLabProvider implements GitProvider {
     this.baseUrl = baseUrl.replace(/\/$/, "");
   }
 
-  private async fetch<T>(
-    endpoint: string,
-    token: string,
-    options: RequestInit = {}
-  ): Promise<T> {
+  private async fetch<T>(endpoint: string, token: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseUrl}/api/v4${endpoint}`;
 
     const response = await fetch(url, {
