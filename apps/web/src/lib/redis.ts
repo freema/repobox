@@ -1,13 +1,5 @@
 import Redis, { type RedisOptions } from "ioredis";
 
-const getRedisUrl = (): string => {
-  const url = process.env.REDIS_URL;
-  if (!url) {
-    throw new Error("REDIS_URL environment variable is not set");
-  }
-  return url;
-};
-
 const redisOptions: RedisOptions = {
   maxRetriesPerRequest: 3,
   lazyConnect: true,
@@ -21,37 +13,58 @@ const redisOptions: RedisOptions = {
   },
 };
 
-// Singleton Redis instance
-let redisInstance: Redis | null = null;
+// Store instance in globalThis to persist across hot reloads in development
+// This pattern is recommended by Next.js for database connections
+const globalForRedis = globalThis as unknown as {
+  redis: Redis | undefined;
+};
 
-export const getRedis = (): Redis => {
-  if (!redisInstance) {
-    redisInstance = new Redis(getRedisUrl(), redisOptions);
+/**
+ * Get or create Redis instance.
+ * Uses globalThis to persist connection across hot reloads in development.
+ */
+export function getRedis(): Redis {
+  if (!globalForRedis.redis) {
+    const url = process.env.REDIS_URL;
+    if (!url) {
+      throw new Error("REDIS_URL environment variable is not set");
+    }
 
-    redisInstance.on("error", (err) => {
+    globalForRedis.redis = new Redis(url, redisOptions);
+
+    globalForRedis.redis.on("error", (err) => {
       console.error("[redis] Connection error:", err.message);
     });
 
-    redisInstance.on("connect", () => {
+    globalForRedis.redis.on("connect", () => {
       console.log("[redis] Connected");
     });
 
-    redisInstance.on("reconnecting", (delay: number) => {
+    globalForRedis.redis.on("reconnecting", (delay: number) => {
       console.log(`[redis] Reconnecting in ${delay}ms`);
     });
   }
 
-  return redisInstance;
-};
+  return globalForRedis.redis;
+}
 
-// For backwards compatibility
-export const redis = getRedis();
+/**
+ * Redis instance for use in server components and API routes.
+ * Lazily initialized on first property access.
+ */
+export const redis = new Proxy({} as Redis, {
+  get(_, prop) {
+    return Reflect.get(getRedis(), prop);
+  },
+});
 
-// Graceful shutdown helper
-export const closeRedis = async (): Promise<void> => {
-  if (redisInstance) {
-    await redisInstance.quit();
-    redisInstance = null;
+/**
+ * Graceful shutdown helper
+ */
+export async function closeRedis(): Promise<void> {
+  if (globalForRedis.redis) {
+    await globalForRedis.redis.quit();
+    globalForRedis.redis = undefined;
     console.log("[redis] Connection closed");
   }
-};
+}

@@ -1,8 +1,11 @@
-import { auth } from "@/lib/auth";
+import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
+import authConfig from "@/lib/auth.config";
 
 // Routes that don't require authentication
 const publicRoutes = ["/login", "/api/auth"];
+
+const { auth } = NextAuth(authConfig);
 
 export default auth((req) => {
   const { pathname } = req.nextUrl;

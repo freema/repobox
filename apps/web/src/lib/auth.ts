@@ -155,6 +155,8 @@ export async function invalidateAllUserSessions(userId: string): Promise<void> {
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  secret: process.env.AUTH_SECRET,
+  trustHost: true,
   providers: [
     GitHub({
       clientId: process.env.GITHUB_OAUTH_CLIENT_ID,
