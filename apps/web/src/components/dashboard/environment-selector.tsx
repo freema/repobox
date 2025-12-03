@@ -21,7 +21,12 @@ export function EnvironmentSelector({ value, onChange }: EnvironmentSelectorProp
       <select
         value={value}
         onChange={(e) => onChange(e.target.value as EnvironmentId)}
-        className="w-full h-10 bg-neutral-800 border border-neutral-700 rounded-lg px-3 text-sm text-white appearance-none cursor-pointer hover:border-neutral-600 focus:outline-none focus:ring-1 focus:ring-neutral-500"
+        className="w-full h-10 rounded-lg px-3 text-sm appearance-none cursor-pointer transition-colors focus:outline-none"
+        style={{
+          backgroundColor: "var(--bg-tertiary)",
+          border: "1px solid var(--border-default)",
+          color: "var(--text-primary)",
+        }}
       >
         {ENVIRONMENTS.map((env) => (
           <option key={env.id} value={env.id}>
@@ -31,7 +36,8 @@ export function EnvironmentSelector({ value, onChange }: EnvironmentSelectorProp
       </select>
       <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
         <svg
-          className="w-4 h-4 text-neutral-500"
+          className="w-4 h-4"
+          style={{ color: "var(--text-muted)" }}
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"

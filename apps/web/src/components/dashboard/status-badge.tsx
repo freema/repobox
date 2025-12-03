@@ -1,30 +1,40 @@
 import type { JobStatus } from "@repobox/types";
 
-const STATUS_CONFIG: Record<JobStatus, { label: string; icon: string; className: string }> = {
+const STATUS_CONFIG: Record<JobStatus, { label: string; icon: string; color: string; bgColor: string; borderColor: string }> = {
   pending: {
     label: "Pending",
     icon: "⏸",
-    className: "bg-neutral-700 text-neutral-300",
+    color: "var(--text-secondary)",
+    bgColor: "rgba(163, 163, 163, 0.1)",
+    borderColor: "var(--text-muted)",
   },
   running: {
     label: "Running",
     icon: "⏳",
-    className: "bg-yellow-900/50 text-yellow-400",
+    color: "var(--warning)",
+    bgColor: "var(--warning-bg)",
+    borderColor: "var(--warning)",
   },
   success: {
     label: "Success",
     icon: "✓",
-    className: "bg-green-900/50 text-green-400",
+    color: "var(--success)",
+    bgColor: "var(--success-bg)",
+    borderColor: "var(--success)",
   },
   failed: {
     label: "Failed",
     icon: "✗",
-    className: "bg-red-900/50 text-red-400",
+    color: "var(--error)",
+    bgColor: "var(--error-bg)",
+    borderColor: "var(--error)",
   },
   cancelled: {
     label: "Cancelled",
     icon: "⊘",
-    className: "bg-neutral-700 text-neutral-400",
+    color: "var(--text-muted)",
+    bgColor: "rgba(115, 115, 115, 0.1)",
+    borderColor: "var(--text-muted)",
   },
 };
 
@@ -38,7 +48,12 @@ export function StatusBadge({ status, showLabel = true }: StatusBadgeProps) {
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium ${config.className}`}
+      className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium"
+      style={{
+        backgroundColor: config.bgColor,
+        color: config.color,
+        border: `1px solid ${config.borderColor}`,
+      }}
       data-testid="status-badge"
     >
       <span>{config.icon}</span>

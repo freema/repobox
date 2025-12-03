@@ -1,50 +1,108 @@
 "use client";
 
-import { useState } from "react";
-import type { Job } from "@repobox/types";
+import { useEffect, useRef, useCallback } from "react";
+import { useDashboard } from "@/contexts/dashboard-context";
 import { SessionCard } from "./session-card";
 
-type FilterOption = "all" | "running" | "success" | "failed";
+const PAGE_SIZE = 20;
 
-interface SessionListProps {
-  jobs: Job[];
-}
+export function SessionList() {
+  const { state, dispatch } = useDashboard();
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
-export function SessionList({ jobs }: SessionListProps) {
-  const [filter, setFilter] = useState<FilterOption>("all");
-
-  const filteredJobs = jobs.filter((job) => {
-    if (filter === "all") return true;
-    if (filter === "running") return job.status === "running" || job.status === "pending";
-    return job.status === filter;
+  // Filter sessions based on current filter
+  const filteredSessions = state.sessions.filter((job) => {
+    if (state.sessionFilter === "all") return true;
+    // "active" filter shows running and pending jobs
+    return job.status === "running" || job.status === "pending";
   });
 
-  return (
-    <div className="flex flex-col h-full" data-testid="session-list">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-800">
-        <h2 className="text-sm font-semibold text-white">Sessions</h2>
-        <select
-          value={filter}
-          onChange={(e) => setFilter(e.target.value as FilterOption)}
-          className="text-xs bg-neutral-800 border border-neutral-700 rounded px-2 py-1 text-neutral-300 focus:outline-none focus:ring-1 focus:ring-neutral-600"
-          data-testid="session-filter"
-        >
-          <option value="all">All</option>
-          <option value="running">Active</option>
-          <option value="success">Success</option>
-          <option value="failed">Failed</option>
-        </select>
-      </div>
+  // Load more sessions
+  const loadMoreSessions = useCallback(async () => {
+    if (state.isLoadingSessions || !state.hasMoreSessions) return;
 
-      <div className="flex-1 overflow-y-auto p-2 space-y-1">
-        {filteredJobs.length === 0 ? (
-          <div className="px-3 py-8 text-center text-sm text-neutral-500">
-            {jobs.length === 0 ? "No sessions yet" : "No matching sessions"}
+    dispatch({ type: "SET_LOADING_SESSIONS", payload: true });
+
+    try {
+      const offset = state.sessions.length;
+      const params = new URLSearchParams({
+        offset: String(offset),
+        limit: String(PAGE_SIZE),
+        filter: state.sessionFilter,
+      });
+
+      const response = await fetch(`/api/jobs?${params}`);
+      if (!response.ok) throw new Error("Failed to load sessions");
+
+      const data = await response.json();
+
+      dispatch({ type: "APPEND_SESSIONS", payload: data.jobs });
+      dispatch({ type: "SET_HAS_MORE_SESSIONS", payload: data.hasMore });
+      dispatch({ type: "INCREMENT_SESSIONS_PAGE" });
+    } catch (error) {
+      console.error("Failed to load more sessions:", error);
+    } finally {
+      dispatch({ type: "SET_LOADING_SESSIONS", payload: false });
+    }
+  }, [state.isLoadingSessions, state.hasMoreSessions, state.sessions.length, state.sessionFilter, dispatch]);
+
+  // Intersection observer for lazy loading
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          loadMoreSessions();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    const target = loadMoreRef.current;
+    if (target) {
+      observer.observe(target);
+    }
+
+    return () => observer.disconnect();
+  }, [loadMoreSessions]);
+
+  const handleSessionClick = (jobId: string) => {
+    dispatch({ type: "SET_ACTIVE_SESSION", payload: jobId });
+  };
+
+  return (
+    <div className="flex-1 overflow-y-auto p-2 space-y-1 min-h-0" data-testid="session-list">
+      {filteredSessions.length === 0 ? (
+        <div
+          className="px-3 py-8 text-center text-sm"
+          style={{ color: "var(--text-muted)" }}
+        >
+          {state.sessions.length === 0 ? "No sessions yet" : "No matching sessions"}
+        </div>
+      ) : (
+        <>
+          {filteredSessions.map((job) => (
+            <SessionCard
+              key={job.id}
+              job={job}
+              isActive={job.id === state.activeSessionId}
+              onClick={() => handleSessionClick(job.id)}
+            />
+          ))}
+
+          {/* Lazy load trigger */}
+          <div ref={loadMoreRef} className="h-4 flex items-center justify-center">
+            {state.isLoadingSessions && (
+              <div
+                className="w-4 h-4 rounded-full animate-spin"
+                style={{
+                  border: "2px solid var(--border-default)",
+                  borderTopColor: "var(--text-secondary)",
+                }}
+              />
+            )}
           </div>
-        ) : (
-          filteredJobs.map((job) => <SessionCard key={job.id} job={job} />)
-        )}
-      </div>
+        </>
+      )}
     </div>
   );
 }

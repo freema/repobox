@@ -10,7 +10,12 @@ export default async function DashboardPage() {
   }
 
   // Fetch user's job history
-  const jobs = await getUserJobs(session.user.id, { limit: 50 });
+  const jobs = await getUserJobs(session.user.id, { limit: 20 });
 
-  return <DashboardClient initialJobs={jobs} />;
+  return (
+    <DashboardClient
+      initialJobs={jobs}
+      user={session.user}
+    />
+  );
 }

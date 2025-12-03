@@ -1,179 +1,118 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { Job } from "@repobox/types";
-import {
-  SessionList,
-  RepositorySelector,
-  EnvironmentSelector,
-  PromptInput,
-  type EnvironmentId,
-} from "@/components/dashboard";
+import { DashboardProvider } from "@/contexts/dashboard-context";
+import { ThemeProvider } from "@/contexts/theme-context";
+import { LeftPanel } from "@/components/dashboard/left-panel";
+import { RightPanel } from "@/components/dashboard/right-panel";
 
-interface Repository {
+const STORAGE_KEY = "repobox-left-panel-width";
+const DEFAULT_WIDTH = 40;
+const MIN_WIDTH = 20;
+const MAX_WIDTH = 60;
+
+interface User {
   id: string;
-  name: string;
-  fullName: string;
-  providerId: string;
-  providerType: "github" | "gitlab";
+  name?: string | null;
+  email?: string | null;
+  image?: string | null;
 }
 
 interface DashboardClientProps {
   initialJobs: Job[];
+  user: User;
 }
 
-export function DashboardClient({ initialJobs }: DashboardClientProps) {
-  const [jobs] = useState<Job[]>(initialJobs);
-  const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null);
-  const [environment, setEnvironment] = useState<EnvironmentId>("default");
-  const [prompt, setPrompt] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+export function DashboardClient({ initialJobs, user }: DashboardClientProps) {
+  const [leftWidth, setLeftWidth] = useState(DEFAULT_WIDTH);
+  const [isDragging, setIsDragging] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  const handleSubmit = async () => {
-    if (!selectedRepo || !prompt.trim()) return;
-
-    setIsSubmitting(true);
-    try {
-      // TODO: Implement job creation API in Phase 06
-      console.log("Creating job:", {
-        repoId: selectedRepo.id,
-        providerId: selectedRepo.providerId,
-        environment,
-        prompt: prompt.trim(),
-      });
-
-      // Reset form after successful submission
-      setPrompt("");
-    } catch (error) {
-      console.error("Failed to create job:", error);
-    } finally {
-      setIsSubmitting(false);
+  // Load saved width from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = parseInt(saved, 10);
+      if (!isNaN(parsed) && parsed >= MIN_WIDTH && parsed <= MAX_WIDTH) {
+        setLeftWidth(parsed);
+      }
     }
-  };
+  }, []);
+
+  // Save width to localStorage when it changes
+  useEffect(() => {
+    if (!isDragging) {
+      localStorage.setItem(STORAGE_KEY, leftWidth.toString());
+    }
+  }, [leftWidth, isDragging]);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!containerRef.current) return;
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const newWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100;
+      setLeftWidth(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, newWidth)));
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isDragging]);
 
   return (
-    <div className="h-full flex" data-testid="dashboard-page">
-      {/* Sessions sidebar */}
-      <aside
-        className="w-72 border-r border-neutral-800 flex-shrink-0 hidden lg:flex flex-col"
-        data-testid="sessions-sidebar"
-      >
-        <SessionList jobs={jobs} />
-      </aside>
-
-      {/* Main workspace */}
-      <div className="flex-1 flex flex-col overflow-hidden" data-testid="main-workspace">
-        <div className="flex-1 flex items-center justify-center p-6">
-          <div className="w-full max-w-2xl space-y-6">
-            {/* Logo and tagline */}
-            <div className="text-center mb-8">
-              <div className="text-6xl mb-4">🗃️</div>
-              <h1 className="text-2xl font-bold mb-2">What would you like to build?</h1>
-              <p className="text-neutral-500">Select a repository and describe your task</p>
-            </div>
-
-            {/* Selectors */}
-            <div className="grid grid-cols-2 gap-3">
-              <RepositorySelector
-                value={selectedRepo?.id ?? null}
-                onChange={(id, repo) => setSelectedRepo(repo)}
-              />
-              <EnvironmentSelector value={environment} onChange={setEnvironment} />
-            </div>
-
-            {/* Prompt input */}
-            <PromptInput
-              value={prompt}
-              onChange={setPrompt}
-              onSubmit={handleSubmit}
-              disabled={isSubmitting || !selectedRepo}
-              placeholder={
-                selectedRepo
-                  ? `What should I do in ${selectedRepo.name}?`
-                  : "Select a repository first..."
-              }
-            />
-
-            {/* Quick actions */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <QuickAction
-                title="Write a CLAUDE.md"
-                description="Create or update my project documentation"
-                onClick={() => setPrompt("Write a CLAUDE.md file for this project")}
-              />
-              <QuickAction
-                title="Fix a small todo"
-                description="Search for TODO and fix it"
-                onClick={() => setPrompt("Find and fix TODO comments in the codebase")}
-              />
-              <QuickAction
-                title="Improve test coverage"
-                description="Add missing unit tests"
-                onClick={() => setPrompt("Analyze the codebase and add missing unit tests")}
-              />
-            </div>
+    <ThemeProvider>
+      <DashboardProvider initialJobs={initialJobs}>
+        <div
+          ref={containerRef}
+          className="h-full flex"
+          data-testid="dashboard-page"
+        >
+          {/* Left Panel */}
+          <div
+            className="h-full flex flex-col"
+            style={{
+              width: `${leftWidth}%`,
+              borderRight: "1px solid var(--border-subtle)",
+            }}
+          >
+            <LeftPanel user={user} />
           </div>
+
+          {/* Resizable divider */}
+          <div
+            className="w-1 cursor-col-resize transition-colors"
+            style={{
+              backgroundColor: isDragging ? "var(--accent-primary)" : "var(--border-subtle)",
+            }}
+            onMouseDown={handleMouseDown}
+            onMouseEnter={(e) => {
+              if (!isDragging) e.currentTarget.style.backgroundColor = "var(--border-default)";
+            }}
+            onMouseLeave={(e) => {
+              if (!isDragging) e.currentTarget.style.backgroundColor = "var(--border-subtle)";
+            }}
+          />
+
+          {/* Right Panel */}
+          <RightPanel />
         </div>
-      </div>
-
-      {/* Right panel - hidden on smaller screens */}
-      <aside
-        className="w-64 border-l border-neutral-800 p-4 hidden xl:block"
-        data-testid="quick-actions-panel"
-      >
-        <h3 className="text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-4">
-          Quick Actions
-        </h3>
-        <div className="space-y-2">
-          <QuickActionSmall
-            title="Write a CLAUDE.md"
-            onClick={() => setPrompt("Write a CLAUDE.md file for this project")}
-          />
-          <QuickActionSmall
-            title="Fix a small todo"
-            onClick={() => setPrompt("Find and fix TODO comments in the codebase")}
-          />
-          <QuickActionSmall
-            title="Improve test coverage"
-            onClick={() => setPrompt("Analyze the codebase and add missing unit tests")}
-          />
-          <QuickActionSmall
-            title="Refactor code"
-            onClick={() => setPrompt("Identify and refactor code that needs improvement")}
-          />
-        </div>
-      </aside>
-    </div>
-  );
-}
-
-function QuickAction({
-  title,
-  description,
-  onClick,
-}: {
-  title: string;
-  description: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className="p-4 bg-neutral-800/50 border border-neutral-700 rounded-xl text-left hover:bg-neutral-800 hover:border-neutral-600 transition-colors"
-    >
-      <h4 className="font-medium text-sm text-white mb-1">{title}</h4>
-      <p className="text-xs text-neutral-500">{description}</p>
-    </button>
-  );
-}
-
-function QuickActionSmall({ title, onClick }: { title: string; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className="w-full p-3 bg-neutral-800/50 border border-neutral-700 rounded-lg text-left text-sm text-neutral-300 hover:bg-neutral-800 hover:border-neutral-600 hover:text-white transition-colors"
-    >
-      {title}
-    </button>
+      </DashboardProvider>
+    </ThemeProvider>
   );
 }

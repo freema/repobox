@@ -2,14 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { ProviderModal } from "@/components/git-providers";
-
-interface Repository {
-  id: string;
-  name: string;
-  fullName: string;
-  providerId: string;
-  providerType: "github" | "gitlab";
-}
+import type { Repository } from "@/contexts/dashboard-context";
 
 interface RepositorySelectorProps {
   value: string | null;
@@ -52,7 +45,8 @@ export function RepositorySelector({ value, onChange }: RepositorySelectorProps)
   if (loading) {
     return (
       <div
-        className="h-10 bg-neutral-800 rounded-lg animate-pulse"
+        className="h-10 rounded-lg animate-pulse"
+        style={{ backgroundColor: "var(--bg-tertiary)" }}
         data-testid="repo-selector-loading"
       />
     );
@@ -60,7 +54,14 @@ export function RepositorySelector({ value, onChange }: RepositorySelectorProps)
 
   if (error) {
     return (
-      <div className="h-10 bg-red-900/20 border border-red-800 rounded-lg flex items-center px-3 text-sm text-red-400">
+      <div
+        className="h-10 rounded-lg flex items-center px-3 text-sm"
+        style={{
+          backgroundColor: "var(--error-bg)",
+          border: "1px solid var(--error)",
+          color: "var(--diff-remove)",
+        }}
+      >
         {error}
       </div>
     );
@@ -73,11 +74,17 @@ export function RepositorySelector({ value, onChange }: RepositorySelectorProps)
           <button
             type="button"
             onClick={() => setIsOpen(!isOpen)}
-            className="w-full h-10 bg-neutral-800 border border-neutral-700 rounded-lg px-3 text-left flex items-center justify-between text-sm hover:border-neutral-600 focus:outline-none focus:ring-1 focus:ring-neutral-500"
+            className="w-full h-10 rounded-lg px-3 text-left flex items-center justify-between text-sm transition-colors"
+            style={{
+              backgroundColor: "var(--bg-tertiary)",
+              border: "1px solid var(--border-default)",
+              color: "var(--text-muted)",
+            }}
           >
-            <span className="text-neutral-500">Select repository...</span>
+            <span>Select repository...</span>
             <svg
-              className="w-4 h-4 text-neutral-500"
+              className="w-4 h-4"
+              style={{ color: "var(--text-muted)" }}
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -89,8 +96,20 @@ export function RepositorySelector({ value, onChange }: RepositorySelectorProps)
           {isOpen && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
-              <div className="absolute z-20 w-full mt-1 bg-neutral-800 border border-neutral-700 rounded-lg shadow-lg overflow-hidden">
-                <div className="px-3 py-3 text-sm text-neutral-500 text-center border-b border-neutral-700">
+              <div
+                className="absolute z-20 w-full mt-1 rounded-lg shadow-lg overflow-hidden"
+                style={{
+                  backgroundColor: "var(--bg-tertiary)",
+                  border: "1px solid var(--border-default)",
+                }}
+              >
+                <div
+                  className="px-3 py-3 text-sm text-center"
+                  style={{
+                    color: "var(--text-muted)",
+                    borderBottom: "1px solid var(--border-subtle)",
+                  }}
+                >
                   No repositories available
                 </div>
                 <button
@@ -99,7 +118,10 @@ export function RepositorySelector({ value, onChange }: RepositorySelectorProps)
                     setIsOpen(false);
                     setShowProviderModal(true);
                   }}
-                  className="w-full px-3 py-2.5 text-left text-sm text-orange-400 hover:bg-neutral-700 flex items-center gap-2"
+                  className="w-full px-3 py-2.5 text-left text-sm flex items-center gap-2 transition-colors"
+                  style={{ color: "var(--accent-primary)" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--bg-hover)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -125,13 +147,21 @@ export function RepositorySelector({ value, onChange }: RepositorySelectorProps)
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full h-10 bg-neutral-800 border border-neutral-700 rounded-lg px-3 text-left flex items-center justify-between text-sm hover:border-neutral-600 focus:outline-none focus:ring-1 focus:ring-neutral-500"
+        className="w-full h-10 rounded-lg px-3 text-left flex items-center justify-between text-sm transition-colors"
+        style={{
+          backgroundColor: "var(--bg-tertiary)",
+          border: "1px solid var(--border-default)",
+        }}
       >
-        <span className={selectedRepo ? "text-white" : "text-neutral-500"}>
+        <span
+          className="font-mono truncate"
+          style={{ color: selectedRepo ? "var(--text-primary)" : "var(--text-muted)" }}
+        >
           {selectedRepo ? selectedRepo.fullName : "Select repository..."}
         </span>
         <svg
-          className="w-4 h-4 text-neutral-500"
+          className="w-4 h-4 shrink-0 ml-2"
+          style={{ color: "var(--text-muted)" }}
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -143,20 +173,34 @@ export function RepositorySelector({ value, onChange }: RepositorySelectorProps)
       {isOpen && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
-          <div className="absolute z-20 w-full mt-1 bg-neutral-800 border border-neutral-700 rounded-lg shadow-lg max-h-64 overflow-hidden">
-            <div className="p-2 border-b border-neutral-700">
+          <div
+            className="absolute z-20 w-full mt-1 rounded-lg shadow-lg max-h-64 overflow-hidden"
+            style={{
+              backgroundColor: "var(--bg-tertiary)",
+              border: "1px solid var(--border-default)",
+            }}
+          >
+            <div className="p-2" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search repositories..."
-                className="w-full bg-neutral-700 border-0 rounded px-3 py-1.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:ring-1 focus:ring-neutral-500"
+                className="w-full rounded px-3 py-1.5 text-sm focus:outline-none"
+                style={{
+                  backgroundColor: "var(--bg-hover)",
+                  color: "var(--text-primary)",
+                  border: "none",
+                }}
                 autoFocus
               />
             </div>
             <div className="max-h-40 overflow-y-auto">
               {filteredRepos.length === 0 ? (
-                <div className="px-3 py-4 text-sm text-neutral-500 text-center">
+                <div
+                  className="px-3 py-4 text-sm text-center"
+                  style={{ color: "var(--text-muted)" }}
+                >
                   No repositories found
                 </div>
               ) : (
@@ -169,27 +213,38 @@ export function RepositorySelector({ value, onChange }: RepositorySelectorProps)
                       setIsOpen(false);
                       setSearch("");
                     }}
-                    className={`w-full px-3 py-2 text-left text-sm hover:bg-neutral-700 flex items-center gap-2 ${
-                      repo.id === value ? "bg-neutral-700 text-white" : "text-neutral-300"
-                    }`}
+                    className="w-full px-3 py-2 text-left text-sm flex items-center gap-2 transition-colors"
+                    style={{
+                      backgroundColor: repo.id === value ? "var(--bg-hover)" : "transparent",
+                      color: repo.id === value ? "var(--text-primary)" : "var(--text-secondary)",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (repo.id !== value) e.currentTarget.style.backgroundColor = "var(--bg-hover)";
+                    }}
+                    onMouseLeave={(e) => {
+                      if (repo.id !== value) e.currentTarget.style.backgroundColor = "transparent";
+                    }}
                   >
-                    <span className="text-neutral-500">
+                    <span style={{ color: "var(--text-muted)" }} className="text-xs">
                       {repo.providerType === "github" ? "GH" : "GL"}
                     </span>
-                    <span className="truncate">{repo.fullName}</span>
+                    <span className="truncate font-mono">{repo.fullName}</span>
                   </button>
                 ))
               )}
             </div>
             {/* Add Git Provider button */}
-            <div className="border-t border-neutral-700">
+            <div style={{ borderTop: "1px solid var(--border-subtle)" }}>
               <button
                 type="button"
                 onClick={() => {
                   setIsOpen(false);
                   setShowProviderModal(true);
                 }}
-                className="w-full px-3 py-2.5 text-left text-sm text-orange-400 hover:bg-neutral-700 flex items-center gap-2"
+                className="w-full px-3 py-2.5 text-left text-sm flex items-center gap-2 transition-colors"
+                style={{ color: "var(--accent-primary)" }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--bg-hover)")}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
