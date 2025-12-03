@@ -16,10 +16,14 @@ type GitLabClient struct {
 }
 
 // NewGitLabClient creates a new GitLab MR client
+// Supports HTTP_PROXY/HTTPS_PROXY/NO_PROXY environment variables
 func NewGitLabClient() *GitLabClient {
 	return &GitLabClient{
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
+			Transport: &http.Transport{
+				Proxy: http.ProxyFromEnvironment,
+			},
 		},
 	}
 }

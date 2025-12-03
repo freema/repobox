@@ -2,6 +2,8 @@
 
 All configuration is done via environment variables. Copy `.env.example` to `.env` and fill in values.
 
+> **Proxy Support:** If running behind a corporate proxy, see [Proxy Configuration](./configuration/proxy.md).
+
 ## Web App
 
 ### Authentication
@@ -133,6 +135,16 @@ openssl rand -base64 32
 ```bash
 openssl rand -base64 32
 ```
+
+## Proxy Settings
+
+For environments behind a corporate proxy. See [Proxy Configuration](./configuration/proxy.md) for detailed setup.
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `HTTP_PROXY` | No | Proxy URL for HTTP requests |
+| `HTTPS_PROXY` | No | Proxy URL for HTTPS requests |
+| `NO_PROXY` | No | Hosts to bypass proxy (comma-separated) |
 
 ## Docker Override
 

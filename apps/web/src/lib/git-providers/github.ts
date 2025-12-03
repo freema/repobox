@@ -1,4 +1,5 @@
 import type { GitProvider, Repository, VerifyTokenResult, MergeRequestResult } from "./types";
+import { proxyFetch } from "../proxy-fetch";
 
 interface GitHubRepo {
   id: number;
@@ -51,7 +52,8 @@ export class GitHubProvider implements GitProvider {
   private async fetch<T>(endpoint: string, token: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.apiUrl}${endpoint}`;
 
-    const response = await fetch(url, {
+    // Use proxy-aware fetch for server-side requests
+    const response = await proxyFetch(url, {
       ...options,
       headers: {
         Authorization: `Bearer ${token}`,

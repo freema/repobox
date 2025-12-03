@@ -16,10 +16,14 @@ type GitHubClient struct {
 }
 
 // NewGitHubClient creates a new GitHub PR client
+// Supports HTTP_PROXY/HTTPS_PROXY/NO_PROXY environment variables
 func NewGitHubClient() *GitHubClient {
 	return &GitHubClient{
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
+			Transport: &http.Transport{
+				Proxy: http.ProxyFromEnvironment,
+			},
 		},
 	}
 }

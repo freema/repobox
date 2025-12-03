@@ -1,8 +1,9 @@
-import NextAuth from "next-auth";
+import NextAuth, { customFetch } from "next-auth";
 import GitHub from "next-auth/providers/github";
 import Google from "next-auth/providers/google";
 import { z } from "zod";
 import { redis } from "./redis";
+import { authProxyFetch } from "./auth-proxy";
 
 // Constants
 const SESSION_MAX_AGE = 7 * 24 * 60 * 60; // 7 days in seconds
@@ -161,10 +162,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     GitHub({
       clientId: process.env.GITHUB_OAUTH_CLIENT_ID,
       clientSecret: process.env.GITHUB_OAUTH_CLIENT_SECRET,
+      // Enable proxy support for OAuth token exchange
+      [customFetch]: authProxyFetch,
     }),
     Google({
       clientId: process.env.GOOGLE_OAUTH_CLIENT_ID,
       clientSecret: process.env.GOOGLE_OAUTH_CLIENT_SECRET,
+      // Enable proxy support for OAuth token exchange
+      [customFetch]: authProxyFetch,
     }),
   ],
   pages: {

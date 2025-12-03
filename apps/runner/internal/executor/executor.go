@@ -16,7 +16,6 @@ import (
 	"github.com/repobox/runner/internal/crypto"
 	"github.com/repobox/runner/internal/git"
 	"github.com/repobox/runner/internal/job"
-	"github.com/repobox/runner/internal/mergerequest"
 	rediskeys "github.com/repobox/runner/internal/redis"
 	"github.com/repobox/runner/internal/worker"
 )
@@ -191,61 +190,6 @@ func (e *Executor) Execute(ctx context.Context, msg *worker.JobMessage) error {
 	)
 
 	return nil
-}
-
-// createMergeRequest creates a MR/PR and returns the URL or warning message
-func (e *Executor) createMergeRequest(
-	ctx context.Context,
-	j *job.Job,
-	provider *providerInfo,
-	sourceBranch, targetBranch string,
-	linesAdded, linesRemoved int,
-) (mrURL string, warning string) {
-	// Extract project ID from repo URL
-	projectID, err := mergerequest.ExtractProjectID(j.RepoURL)
-	if err != nil {
-		return "", fmt.Sprintf("Failed to extract project ID: %s", err)
-	}
-
-	// Get the appropriate client
-	var creator mergerequest.Creator
-	switch provider.Type {
-	case "github":
-		creator = mergerequest.NewGitHubClient()
-	case "gitlab":
-		creator = mergerequest.NewGitLabClient()
-	default:
-		return "", fmt.Sprintf("Unknown provider type: %s", provider.Type)
-	}
-
-	// Generate title and description
-	title := mergerequest.GenerateTitle(j.Prompt)
-	description := mergerequest.GenerateDescription(mergerequest.TemplateParams{
-		Prompt:       j.Prompt,
-		LinesAdded:   linesAdded,
-		LinesRemoved: linesRemoved,
-		BranchName:   sourceBranch,
-		JobID:        j.ID,
-	})
-
-	// Create the MR/PR
-	e.appendOutput(ctx, j.ID, "stdout", "Creating merge request...")
-
-	result, err := creator.Create(mergerequest.CreateParams{
-		Token:        provider.Token,
-		BaseURL:      provider.URL,
-		ProjectID:    projectID,
-		Title:        title,
-		Description:  description,
-		SourceBranch: sourceBranch,
-		TargetBranch: targetBranch,
-	})
-
-	if err != nil {
-		return "", fmt.Sprintf("Failed to create merge request: %s", err)
-	}
-
-	return result.URL, ""
 }
 
 // providerInfo holds provider data needed for job execution

@@ -1,4 +1,5 @@
 import type { GitProvider, Repository, VerifyTokenResult, MergeRequestResult } from "./types";
+import { proxyFetch } from "../proxy-fetch";
 
 interface GitLabProject {
   id: number;
@@ -39,7 +40,8 @@ export class GitLabProvider implements GitProvider {
   private async fetch<T>(endpoint: string, token: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseUrl}/api/v4${endpoint}`;
 
-    const response = await fetch(url, {
+    // Use proxy-aware fetch for server-side requests
+    const response = await proxyFetch(url, {
       ...options,
       headers: {
         "PRIVATE-TOKEN": token,
