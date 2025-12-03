@@ -44,8 +44,9 @@ The Runner is a Go service that processes coding jobs from a Redis Stream queue.
    - Updates status to `running`
    - Fetches token from `git_provider:{userId}:{providerId}`
    - Decrypts token (AES-256-GCM)
-   - Clone → Branch → AI Agent → Commit → Push
+   - Clone → Branch → **AI Agent** → Commit → Push
    - Updates status to `success`/`failed`
+   - Streams output to `job:{id}:output` in real-time
 
 4. **Completion**:
    - `XACK` stream message
@@ -98,3 +99,85 @@ The Runner is a Go service that processes coding jobs from a Redis Stream queue.
 | Git clone fail | Mark failed, log masked error |
 | Worker panic | Recover, mark failed, continue |
 | Shutdown signal | Finish in-flight, decrement counters |
+| AI agent timeout | Kill process, mark failed |
+| AI agent exit code ≠ 0 | Mark failed with exit code |
+
+## AI Agent Integration
+
+The runner spawns AI agents as subprocesses to execute code changes.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                       Executor                               │
+│                                                             │
+│  ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐  │
+│  │  Clone  │───▶│ Branch  │───▶│  Agent  │───▶│  Push   │  │
+│  └─────────┘    └─────────┘    └────┬────┘    └─────────┘  │
+│                                     │                       │
+└─────────────────────────────────────│───────────────────────┘
+                                      │
+                       ┌──────────────▼──────────────┐
+                       │        AI Agent             │
+                       │                             │
+                       │  ┌───────────────────────┐  │
+                       │  │   Claude Code CLI     │  │
+                       │  │   (subprocess)        │  │
+                       │  └───────────┬───────────┘  │
+                       │              │              │
+                       │       stdout/stderr        │
+                       │              │              │
+                       │              ▼              │
+                       │  ┌───────────────────────┐  │
+                       │  │   Output Streaming    │──┼──▶ Redis
+                       │  │   (real-time)         │  │
+                       │  └───────────────────────┘  │
+                       └─────────────────────────────┘
+```
+
+### Agent Interface
+
+```go
+type Agent interface {
+    Execute(ctx context.Context, opts ExecuteOptions) error
+}
+
+type ExecuteOptions struct {
+    WorkDir     string        // Cloned repo path
+    Prompt      string        // User instruction
+    Environment string        // Runtime environment
+    JobID       string        // For logging
+    Output      OutputWriter  // Streaming callback
+}
+```
+
+### Supported Providers
+
+| Provider | CLI Command | Status |
+|----------|-------------|--------|
+| Claude Code | `claude --print -p <prompt>` | ✅ Implemented |
+| Mock | (internal) | ✅ For testing |
+| Codex | TBD | 🔜 Planned |
+
+### Output Streaming
+
+Agent output is streamed line-by-line to Redis:
+
+```json
+// job:{id}:output (Redis List)
+{"timestamp": 1701561234567, "line": "Reading file...", "stream": "stdout"}
+{"timestamp": 1701561234568, "line": "Modified 3 files", "stream": "stdout"}
+```
+
+- **Real-time**: Each line pushed via `RPUSH`
+- **Prefixed**: `stdout` or `stderr` for UI styling
+- **Limited**: Max 10,000 lines (configurable)
+- **TTL**: 24 hours
+
+### Mock Mode
+
+When `AI_ENABLED=false` or API key missing:
+- Creates `.repobox-mock.md` placeholder file
+- Useful for testing full pipeline without AI costs
+- Logs what would have been executed

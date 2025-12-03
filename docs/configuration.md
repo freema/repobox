@@ -51,11 +51,36 @@ All configuration is done via environment variables. Copy `.env.example` to `.en
 | `TEMP_DIR` | No | `/tmp/repobox` | Git clone directory |
 | `CLEANUP_AFTER_JOB` | No | `true` | Delete temp after job |
 
-## AI Agent (Phase 07)
+## AI Agent
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `ANTHROPIC_API_KEY` | Yes | Claude API key |
+Configuration for the AI code agent that executes prompts in repositories.
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `AI_ENABLED` | No | `true` | Enable AI agent (false = mock mode) |
+| `AI_PROVIDER` | No | `claude` | AI provider name |
+| `AI_CLI_PATH` | No | `claude` | Path to CLI executable |
+| `ANTHROPIC_API_KEY` | For Claude | - | Claude API key |
+| `AI_TIMEOUT` | No | `1800` | Agent timeout in seconds (30 min) |
+| `AI_MAX_OUTPUT_LINES` | No | `10000` | Max output lines before truncation |
+
+### Mock Mode
+
+If `AI_ENABLED=false` or `ANTHROPIC_API_KEY` is empty, the runner operates in mock mode:
+- Creates a `.repobox-mock.md` file instead of running AI
+- Useful for testing the pipeline without AI costs
+- All git operations (clone, branch, commit, push) still execute
+
+### Claude Code Setup
+
+1. Install Claude Code CLI: https://docs.anthropic.com/claude-code
+2. Get API key from https://console.anthropic.com/
+3. Set `ANTHROPIC_API_KEY` in `.env`
+
+The runner invokes Claude with:
+```bash
+claude --print --output-format text -p "<user prompt>"
+```
 
 ## Generating Keys
 

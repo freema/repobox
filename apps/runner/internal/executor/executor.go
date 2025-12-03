@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"github.com/repobox/runner/internal/agent"
 	"github.com/repobox/runner/internal/config"
 	"github.com/repobox/runner/internal/crypto"
 	"github.com/repobox/runner/internal/git"
@@ -24,6 +25,7 @@ type Executor struct {
 	rdb       *redis.Client
 	cfg       *config.Config
 	decryptor *crypto.Decryptor
+	agent     agent.Agent
 	logger    *slog.Logger
 }
 
@@ -34,10 +36,22 @@ func NewExecutor(rdb *redis.Client, cfg *config.Config, logger *slog.Logger) (*E
 		return nil, fmt.Errorf("failed to create decryptor: %w", err)
 	}
 
+	// Create AI agent
+	agentCfg := &agent.Config{
+		Enabled:        cfg.AIEnabled,
+		Provider:       cfg.AIProvider,
+		CLIPath:        cfg.AICLIPath,
+		APIKey:         cfg.AIAPIKey,
+		Timeout:        int(cfg.AITimeout.Seconds()),
+		MaxOutputLines: cfg.AIMaxOutputLines,
+	}
+	aiAgent := agent.NewClaudeAgent(agentCfg, logger.With("component", "agent"))
+
 	return &Executor{
 		rdb:       rdb,
 		cfg:       cfg,
 		decryptor: decryptor,
+		agent:     aiAgent,
 		logger:    logger,
 	}, nil
 }
@@ -109,17 +123,25 @@ func (e *Executor) Execute(ctx context.Context, msg *worker.JobMessage) error {
 		return e.failJob(jobCtx, j.ID, fmt.Errorf("create branch failed: %w", err))
 	}
 
-	// TODO: Phase 07 - AI Agent Integration
-	// For now, we just create a placeholder file to test the flow
-	e.appendOutput(jobCtx, j.ID, "stdout", "AI agent would execute here (Phase 07)...")
-	e.appendOutput(jobCtx, j.ID, "stdout", fmt.Sprintf("Prompt: %s", j.Prompt))
+	// Execute AI agent
+	logger.Info("executing AI agent", "environment", j.Environment)
+	e.appendOutput(jobCtx, j.ID, "stdout", "Executing AI agent...")
 
-	// Create a test file to verify the flow works
-	testFile := filepath.Join(repoPath, ".repobox-test.md")
-	testContent := fmt.Sprintf("# Repobox Job %s\n\nPrompt: %s\n\nExecuted at: %s\n",
-		j.ID, j.Prompt, time.Now().Format(time.RFC3339))
-	if err := os.WriteFile(testFile, []byte(testContent), 0644); err != nil {
-		logger.Warn("failed to create test file", "error", err)
+	// Create output callback that streams to Redis
+	outputCallback := func(stream, line string) {
+		e.appendOutput(jobCtx, j.ID, stream, line)
+	}
+
+	agentOpts := agent.ExecuteOptions{
+		WorkDir:     repoPath,
+		Prompt:      j.Prompt,
+		Environment: j.Environment,
+		JobID:       j.ID,
+		Output:      outputCallback,
+	}
+
+	if err := e.agent.Execute(jobCtx, agentOpts); err != nil {
+		return e.failJob(jobCtx, j.ID, fmt.Errorf("agent execution failed: %w", err))
 	}
 
 	// Commit changes
