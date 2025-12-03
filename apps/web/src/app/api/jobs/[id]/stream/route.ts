@@ -145,7 +145,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           }
         } catch (error) {
           if (!closed) {
-            sendEvent("error", { message: error instanceof Error ? error.message : "Unknown error" });
+            sendEvent("error", {
+              message: error instanceof Error ? error.message : "Unknown error",
+            });
             controller.close();
             closed = true;
           }

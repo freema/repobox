@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { Job, JobOutput } from "@repobox/types";
 import { useJobStream } from "@/hooks";
 import { StatusBadge } from "./status-badge";
@@ -11,15 +12,7 @@ interface SessionDetailClientProps {
 }
 
 export function SessionDetailClient({ job, initialOutput }: SessionDetailClientProps) {
-  const {
-    status,
-    lines,
-    isConnected,
-    isDone,
-    error,
-    metadata,
-    reconnect,
-  } = useJobStream(job.id, {
+  const { status, lines, isConnected, isDone, error, metadata, reconnect } = useJobStream(job.id, {
     initialJob: job,
     initialOutput,
   });
@@ -36,6 +29,7 @@ export function SessionDetailClient({ job, initialOutput }: SessionDetailClientP
     linesAdded: metadata.linesAdded ?? job.linesAdded,
     linesRemoved: metadata.linesRemoved ?? job.linesRemoved,
     mrUrl: metadata.mrUrl ?? job.mrUrl,
+    mrWarning: metadata.mrWarning ?? job.mrWarning,
     branch: metadata.branch ?? job.branch,
   };
 
@@ -46,7 +40,7 @@ export function SessionDetailClient({ job, initialOutput }: SessionDetailClientP
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-3 mb-2">
-              <a
+              <Link
                 href="/"
                 className="text-neutral-500 hover:text-white transition-colors"
                 data-testid="back-link"
@@ -59,11 +53,9 @@ export function SessionDetailClient({ job, initialOutput }: SessionDetailClientP
                     d="M15 19l-7-7 7-7"
                   />
                 </svg>
-              </a>
+              </Link>
               <StatusBadge status={currentJob.status} />
-              {isStreaming && isConnected && (
-                <span className="text-xs text-neutral-500">Live</span>
-              )}
+              {isStreaming && isConnected && <span className="text-xs text-neutral-500">Live</span>}
             </div>
             <h1 className="text-lg font-semibold text-white truncate" data-testid="session-prompt">
               {currentJob.prompt}
@@ -118,7 +110,11 @@ export function SessionDetailClient({ job, initialOutput }: SessionDetailClientP
 
       {/* Job metadata - updates in real-time */}
       <div className="shrink-0 border-b border-neutral-800 px-6 py-3 flex items-center gap-6 text-sm">
-        <JobMetric label="Created" value={formatDateTime(currentJob.createdAt)} testId="session-created" />
+        <JobMetric
+          label="Created"
+          value={formatDateTime(currentJob.createdAt)}
+          testId="session-created"
+        />
         {currentJob.startedAt && (
           <JobMetric
             label="Started"
@@ -149,9 +145,7 @@ export function SessionDetailClient({ job, initialOutput }: SessionDetailClientP
           />
         )}
         {isStreaming && (
-          <div className="ml-auto text-xs text-neutral-500">
-            {lines.length} lines
-          </div>
+          <div className="ml-auto text-xs text-neutral-500">{lines.length} lines</div>
         )}
       </div>
 
@@ -163,6 +157,17 @@ export function SessionDetailClient({ job, initialOutput }: SessionDetailClientP
         >
           <h3 className="text-sm font-medium text-red-400 mb-1">Error</h3>
           <p className="text-sm text-red-300">{currentJob.errorMessage}</p>
+        </div>
+      )}
+
+      {/* MR/PR Warning (job succeeded but MR creation failed) */}
+      {currentJob.status === "success" && currentJob.mrWarning && (
+        <div
+          className="shrink-0 mx-6 mt-4 p-4 bg-yellow-900/20 border border-yellow-700 rounded-lg"
+          data-testid="session-mr-warning"
+        >
+          <h3 className="text-sm font-medium text-yellow-400 mb-1">Merge Request Warning</h3>
+          <p className="text-sm text-yellow-300">{currentJob.mrWarning}</p>
         </div>
       )}
 

@@ -58,6 +58,7 @@ export interface Job {
   environment: string;
   status: JobStatus;
   mrUrl?: string;
+  mrWarning?: string;
   linesAdded: number;
   linesRemoved: number;
   errorMessage?: string;

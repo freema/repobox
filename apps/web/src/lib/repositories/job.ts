@@ -14,6 +14,7 @@ const JOB_SCHEMA: FieldSchema = {
   environment: "string",
   status: "string",
   mrUrl: "optional_string",
+  mrWarning: "optional_string",
   linesAdded: "number",
   linesRemoved: "number",
   errorMessage: "optional_string",

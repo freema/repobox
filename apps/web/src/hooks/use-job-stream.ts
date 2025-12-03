@@ -22,6 +22,7 @@ interface JobStreamState {
     linesAdded?: number;
     linesRemoved?: number;
     mrUrl?: string;
+    mrWarning?: string;
     branch?: string;
   };
 }
@@ -49,10 +50,7 @@ interface UseJobStreamReturn extends JobStreamState {
 /**
  * Hook for subscribing to real-time job output via SSE
  */
-export function useJobStream(
-  jobId: string,
-  options: UseJobStreamOptions = {}
-): UseJobStreamReturn {
+export function useJobStream(jobId: string, options: UseJobStreamOptions = {}): UseJobStreamReturn {
   const {
     initialJob,
     initialOutput = [],
@@ -65,7 +63,10 @@ export function useJobStream(
     status: initialJob?.status ?? "pending",
     lines: initialOutput,
     isConnected: false,
-    isDone: initialJob?.status === "success" || initialJob?.status === "failed" || initialJob?.status === "cancelled",
+    isDone:
+      initialJob?.status === "success" ||
+      initialJob?.status === "failed" ||
+      initialJob?.status === "cancelled",
     error: null,
     metadata: {
       startedAt: initialJob?.startedAt,
@@ -74,6 +75,7 @@ export function useJobStream(
       linesAdded: initialJob?.linesAdded,
       linesRemoved: initialJob?.linesRemoved,
       mrUrl: initialJob?.mrUrl,
+      mrWarning: initialJob?.mrWarning,
       branch: initialJob?.branch,
     },
   });
@@ -123,6 +125,7 @@ export function useJobStream(
             linesAdded: data.linesAdded ?? prev.metadata.linesAdded,
             linesRemoved: data.linesRemoved ?? prev.metadata.linesRemoved,
             mrUrl: data.mrUrl ?? prev.metadata.mrUrl,
+            mrWarning: data.mrWarning ?? prev.metadata.mrWarning,
             branch: data.branch ?? prev.metadata.branch,
           },
         }));

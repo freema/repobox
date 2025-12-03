@@ -16,6 +16,7 @@ import (
 	"github.com/repobox/runner/internal/crypto"
 	"github.com/repobox/runner/internal/git"
 	"github.com/repobox/runner/internal/job"
+	"github.com/repobox/runner/internal/mergerequest"
 	rediskeys "github.com/repobox/runner/internal/redis"
 	"github.com/repobox/runner/internal/worker"
 )
@@ -87,10 +88,10 @@ func (e *Executor) Execute(ctx context.Context, msg *worker.JobMessage) error {
 		}()
 	}
 
-	// Get git token
-	token, err := e.getProviderToken(jobCtx, j.UserID, msg.ProviderID)
+	// Get provider info
+	provider, err := e.getProviderInfo(jobCtx, j.UserID, msg.ProviderID)
 	if err != nil {
-		return e.failJob(jobCtx, j.ID, fmt.Errorf("failed to get token: %w", err))
+		return e.failJob(jobCtx, j.ID, fmt.Errorf("failed to get provider: %w", err))
 	}
 
 	logger.Info("starting job execution")
@@ -100,7 +101,7 @@ func (e *Executor) Execute(ctx context.Context, msg *worker.JobMessage) error {
 	logger.Info("cloning repository")
 	e.appendOutput(jobCtx, j.ID, "stdout", fmt.Sprintf("Cloning %s...", j.RepoURL))
 
-	g := git.NewWithToken(token)
+	g := git.NewWithToken(provider.Token)
 	repoPath := filepath.Join(workDir, "repo")
 	if err := g.Clone(jobCtx, j.RepoURL, repoPath); err != nil {
 		return e.failJob(jobCtx, j.ID, fmt.Errorf("clone failed: %w", err))
@@ -166,13 +167,31 @@ func (e *Executor) Execute(ctx context.Context, msg *worker.JobMessage) error {
 
 	e.appendOutput(jobCtx, j.ID, "stdout", "Push completed successfully!")
 
+	// Create MR/PR
+	mrURL, mrWarning := e.createMergeRequest(jobCtx, j, provider, branchName, defaultBranch, linesAdded, linesRemoved)
+	if mrURL != "" {
+		logger.Info("merge request created", "url", mrURL)
+		e.appendOutput(jobCtx, j.ID, "stdout", fmt.Sprintf("Merge request created: %s", mrURL))
+	} else if mrWarning != "" {
+		logger.Warn("merge request creation failed", "warning", mrWarning)
+		e.appendOutput(jobCtx, j.ID, "stderr", fmt.Sprintf("Warning: %s", mrWarning))
+	}
+
 	// Update job to success
-	if err := e.updateJobStatus(jobCtx, j.ID, job.StatusSuccess, map[string]interface{}{
+	updateFields := map[string]interface{}{
 		"finishedAt":   time.Now().UnixMilli(),
 		"branch":       branchName,
 		"linesAdded":   linesAdded,
 		"linesRemoved": linesRemoved,
-	}); err != nil {
+	}
+	if mrURL != "" {
+		updateFields["mrUrl"] = mrURL
+	}
+	if mrWarning != "" {
+		updateFields["mrWarning"] = mrWarning
+	}
+
+	if err := e.updateJobStatus(jobCtx, j.ID, job.StatusSuccess, updateFields); err != nil {
 		logger.Error("failed to update status to success", "error", err)
 	}
 
@@ -180,33 +199,100 @@ func (e *Executor) Execute(ctx context.Context, msg *worker.JobMessage) error {
 		"branch", branchName,
 		"lines_added", linesAdded,
 		"lines_removed", linesRemoved,
+		"mr_url", mrURL,
 	)
 
 	return nil
 }
 
-// getProviderToken fetches and decrypts the git provider token
-func (e *Executor) getProviderToken(ctx context.Context, userID, providerID string) (string, error) {
+// createMergeRequest creates a MR/PR and returns the URL or warning message
+func (e *Executor) createMergeRequest(
+	ctx context.Context,
+	j *job.Job,
+	provider *providerInfo,
+	sourceBranch, targetBranch string,
+	linesAdded, linesRemoved int,
+) (mrURL string, warning string) {
+	// Extract project ID from repo URL
+	projectID, err := mergerequest.ExtractProjectID(j.RepoURL)
+	if err != nil {
+		return "", fmt.Sprintf("Failed to extract project ID: %s", err)
+	}
+
+	// Get the appropriate client
+	var creator mergerequest.Creator
+	switch provider.Type {
+	case "github":
+		creator = mergerequest.NewGitHubClient()
+	case "gitlab":
+		creator = mergerequest.NewGitLabClient()
+	default:
+		return "", fmt.Sprintf("Unknown provider type: %s", provider.Type)
+	}
+
+	// Generate title and description
+	title := mergerequest.GenerateTitle(j.Prompt)
+	description := mergerequest.GenerateDescription(mergerequest.TemplateParams{
+		Prompt:       j.Prompt,
+		LinesAdded:   linesAdded,
+		LinesRemoved: linesRemoved,
+		BranchName:   sourceBranch,
+		JobID:        j.ID,
+	})
+
+	// Create the MR/PR
+	e.appendOutput(ctx, j.ID, "stdout", "Creating merge request...")
+
+	result, err := creator.Create(mergerequest.CreateParams{
+		Token:        provider.Token,
+		BaseURL:      provider.URL,
+		ProjectID:    projectID,
+		Title:        title,
+		Description:  description,
+		SourceBranch: sourceBranch,
+		TargetBranch: targetBranch,
+	})
+
+	if err != nil {
+		return "", fmt.Sprintf("Failed to create merge request: %s", err)
+	}
+
+	return result.URL, ""
+}
+
+// providerInfo holds provider data needed for job execution
+type providerInfo struct {
+	Token string // Decrypted token
+	Type  string // "gitlab" or "github"
+	URL   string // Base URL (e.g., https://gitlab.com)
+}
+
+// getProviderInfo fetches provider details including decrypted token
+func (e *Executor) getProviderInfo(ctx context.Context, userID, providerID string) (*providerInfo, error) {
 	key := rediskeys.GitProviderKey(userID, providerID)
 	data, err := e.rdb.HGetAll(ctx, key).Result()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	if len(data) == 0 {
-		return "", fmt.Errorf("provider not found: %s", providerID)
+		return nil, fmt.Errorf("provider not found: %s", providerID)
 	}
 
 	encryptedToken, ok := data["token"]
 	if !ok {
-		return "", fmt.Errorf("token not found for provider: %s", providerID)
+		return nil, fmt.Errorf("token not found for provider: %s", providerID)
 	}
 
 	token, err := e.decryptor.Decrypt(encryptedToken)
 	if err != nil {
-		return "", fmt.Errorf("failed to decrypt token: %w", err)
+		return nil, fmt.Errorf("failed to decrypt token: %w", err)
 	}
 
-	return token, nil
+	return &providerInfo{
+		Token: token,
+		Type:  data["type"],
+		URL:   data["url"],
+	}, nil
 }
 
 // getDefaultBranch detects the default branch of the repository
