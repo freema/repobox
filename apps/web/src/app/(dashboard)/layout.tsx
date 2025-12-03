@@ -2,22 +2,12 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { UserMenu } from "@/components/user-menu";
-import { getUserGitProviders } from "@/lib/git-providers/repository";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
 
   if (!session?.user?.id) {
     redirect("/login");
-  }
-
-  // Check if user has configured git providers
-  const providers = await getUserGitProviders(session.user.id);
-  const hasProviders = providers.length > 0;
-
-  // Redirect to setup if no providers configured (except for settings page)
-  if (!hasProviders) {
-    redirect("/setup");
   }
 
   return (

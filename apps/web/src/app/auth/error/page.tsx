@@ -3,7 +3,8 @@ import Link from "next/link";
 const ERROR_MESSAGES: Record<string, { title: string; description: string }> = {
   AccessDenied: {
     title: "Access Denied",
-    description: "You do not have permission to sign in. This might be a temporary issue - please try again.",
+    description:
+      "You do not have permission to sign in. This might be a temporary issue - please try again.",
   },
   Verification: {
     title: "Verification Error",
@@ -11,7 +12,8 @@ const ERROR_MESSAGES: Record<string, { title: string; description: string }> = {
   },
   OAuthAccountNotLinked: {
     title: "Account Already Exists",
-    description: "This email is already associated with another account. Please sign in with your original provider.",
+    description:
+      "This email is already associated with another account. Please sign in with your original provider.",
   },
   OAuthCallback: {
     title: "Authentication Failed",
@@ -23,7 +25,8 @@ const ERROR_MESSAGES: Record<string, { title: string; description: string }> = {
   },
   Configuration: {
     title: "Configuration Error",
-    description: "There is a problem with the server configuration. Please contact the administrator.",
+    description:
+      "There is a problem with the server configuration. Please contact the administrator.",
   },
   Default: {
     title: "Authentication Error",
@@ -87,9 +90,7 @@ export default async function AuthErrorPage({
         {/* Debug info in dev */}
         {process.env.NODE_ENV === "development" && params.error && (
           <div className="mt-4 p-3 bg-neutral-900/50 border border-neutral-800 rounded-lg">
-            <p className="text-xs text-neutral-500 font-mono">
-              Error code: {params.error}
-            </p>
+            <p className="text-xs text-neutral-500 font-mono">Error code: {params.error}</p>
           </div>
         )}
       </div>

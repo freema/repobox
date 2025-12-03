@@ -122,6 +122,7 @@ export class GitLabProvider implements GitProvider {
     return repositories;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   getCloneUrl(repoUrl: string, token: string, _username: string): string {
     // GitLab uses oauth2 as username with PAT
     // Format: https://oauth2:<token>@gitlab.company.com/group/repo.git

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { ProviderModal } from "@/components/git-providers";
 
 interface Repository {
   id: string;
@@ -21,6 +22,7 @@ export function RepositorySelector({ value, onChange }: RepositorySelectorProps)
   const [error, setError] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [showProviderModal, setShowProviderModal] = useState(false);
 
   useEffect(() => {
     fetchRepositories();
@@ -66,9 +68,55 @@ export function RepositorySelector({ value, onChange }: RepositorySelectorProps)
 
   if (repositories.length === 0) {
     return (
-      <div className="h-10 bg-neutral-800 border border-neutral-700 rounded-lg flex items-center px-3 text-sm text-neutral-500">
-        No repositories available. Add a Git provider first.
-      </div>
+      <>
+        <div className="relative" data-testid="repository-selector-empty">
+          <button
+            type="button"
+            onClick={() => setIsOpen(!isOpen)}
+            className="w-full h-10 bg-neutral-800 border border-neutral-700 rounded-lg px-3 text-left flex items-center justify-between text-sm hover:border-neutral-600 focus:outline-none focus:ring-1 focus:ring-neutral-500"
+          >
+            <span className="text-neutral-500">Select repository...</span>
+            <svg
+              className="w-4 h-4 text-neutral-500"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {isOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
+              <div className="absolute z-20 w-full mt-1 bg-neutral-800 border border-neutral-700 rounded-lg shadow-lg overflow-hidden">
+                <div className="px-3 py-3 text-sm text-neutral-500 text-center border-b border-neutral-700">
+                  No repositories available
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOpen(false);
+                    setShowProviderModal(true);
+                  }}
+                  className="w-full px-3 py-2.5 text-left text-sm text-orange-400 hover:bg-neutral-700 flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Add Git Provider
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+
+        <ProviderModal
+          isOpen={showProviderModal}
+          onClose={() => setShowProviderModal(false)}
+          onSuccess={fetchRepositories}
+        />
+      </>
     );
   }
 
@@ -106,7 +154,7 @@ export function RepositorySelector({ value, onChange }: RepositorySelectorProps)
                 autoFocus
               />
             </div>
-            <div className="max-h-48 overflow-y-auto">
+            <div className="max-h-40 overflow-y-auto">
               {filteredRepos.length === 0 ? (
                 <div className="px-3 py-4 text-sm text-neutral-500 text-center">
                   No repositories found
@@ -133,9 +181,31 @@ export function RepositorySelector({ value, onChange }: RepositorySelectorProps)
                 ))
               )}
             </div>
+            {/* Add Git Provider button */}
+            <div className="border-t border-neutral-700">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOpen(false);
+                  setShowProviderModal(true);
+                }}
+                className="w-full px-3 py-2.5 text-left text-sm text-orange-400 hover:bg-neutral-700 flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Add Git Provider
+              </button>
+            </div>
           </div>
         </>
       )}
+
+      <ProviderModal
+        isOpen={showProviderModal}
+        onClose={() => setShowProviderModal(false)}
+        onSuccess={fetchRepositories}
+      />
     </div>
   );
 }
