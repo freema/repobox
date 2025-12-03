@@ -53,8 +53,14 @@ export function getRedis(): Redis {
  * Lazily initialized on first property access.
  */
 export const redis = new Proxy({} as Redis, {
-  get(_, prop) {
-    return Reflect.get(getRedis(), prop);
+  get(target, prop, receiver) {
+    const instance = getRedis();
+    const value = Reflect.get(instance, prop, receiver);
+    // Bind methods to the Redis instance
+    if (typeof value === "function") {
+      return value.bind(instance);
+    }
+    return value;
   },
 });
 
