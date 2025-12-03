@@ -195,6 +195,11 @@ func (c *Consumer) processMessage(ctx context.Context, msg redis.XMessage) error
 func (c *Consumer) parseMessage(msg redis.XMessage) (*worker.JobMessage, error) {
 	values := msg.Values
 
+	c.logger.Debug("parsing stream message",
+		"stream_id", msg.ID,
+		"values", values,
+	)
+
 	// Get job ID from message
 	jobID, ok := values["job_id"].(string)
 	if !ok {
@@ -203,6 +208,11 @@ func (c *Consumer) parseMessage(msg redis.XMessage) (*worker.JobMessage, error) 
 
 	// Fetch full job data from Redis hash
 	jobKey := rediskeys.JobKey(jobID)
+	c.logger.Debug("fetching job from Redis",
+		"job_id", jobID,
+		"key", jobKey,
+	)
+
 	jobData, err := c.rdb.HGetAll(context.Background(), jobKey).Result()
 	if err != nil {
 		return nil, err
@@ -211,11 +221,23 @@ func (c *Consumer) parseMessage(msg redis.XMessage) (*worker.JobMessage, error) 
 		return nil, errors.New("job not found: " + jobID)
 	}
 
+	c.logger.Debug("job data from Redis",
+		"job_id", jobID,
+		"fields", jobData,
+	)
+
 	// Parse job
 	j, err := parseJobFromHash(jobData)
 	if err != nil {
 		return nil, err
 	}
+
+	c.logger.Debug("parsed job",
+		"job_id", j.ID,
+		"user_id", j.UserID,
+		"provider_id", j.ProviderID,
+		"repo_url", j.RepoURL,
+	)
 
 	// Get provider ID from message
 	providerID, _ := values["provider_id"].(string)
@@ -228,13 +250,14 @@ func (c *Consumer) parseMessage(msg redis.XMessage) (*worker.JobMessage, error) 
 }
 
 // parseJobFromHash converts Redis hash to Job struct
+// Note: Web app stores keys in snake_case (user_id, provider_id, etc.)
 func parseJobFromHash(data map[string]string) (*job.Job, error) {
 	j := &job.Job{
 		ID:          data["id"],
-		UserID:      data["userId"],
-		ProviderID:  data["providerId"],
-		RepoURL:     data["repoUrl"],
-		RepoName:    data["repoName"],
+		UserID:      data["user_id"],
+		ProviderID:  data["provider_id"],
+		RepoURL:     data["repo_url"],
+		RepoName:    data["repo_name"],
 		Branch:      data["branch"],
 		Prompt:      data["prompt"],
 		Environment: data["environment"],
@@ -242,7 +265,7 @@ func parseJobFromHash(data map[string]string) (*job.Job, error) {
 	}
 
 	// Parse timestamps
-	if v, ok := data["createdAt"]; ok {
+	if v, ok := data["created_at"]; ok {
 		var ts int64
 		json.Unmarshal([]byte(v), &ts)
 		j.CreatedAt = time.UnixMilli(ts)

@@ -101,7 +101,11 @@ func (e *Executor) Execute(ctx context.Context, msg *worker.JobMessage) error {
 	logger.Info("cloning repository")
 	e.appendOutput(jobCtx, j.ID, "stdout", fmt.Sprintf("Cloning %s...", j.RepoURL))
 
-	g := git.NewWithToken(provider.Token)
+	g := git.NewWithOptions(git.Options{
+		Token:       provider.Token,
+		AuthorName:  e.cfg.GitAuthorName,
+		AuthorEmail: e.cfg.GitAuthorEmail,
+	})
 	repoPath := filepath.Join(workDir, "repo")
 	if err := g.Clone(jobCtx, j.RepoURL, repoPath); err != nil {
 		return e.failJob(jobCtx, j.ID, fmt.Errorf("clone failed: %w", err))
@@ -166,16 +170,7 @@ func (e *Executor) Execute(ctx context.Context, msg *worker.JobMessage) error {
 	}
 
 	e.appendOutput(jobCtx, j.ID, "stdout", "Push completed successfully!")
-
-	// Create MR/PR
-	mrURL, mrWarning := e.createMergeRequest(jobCtx, j, provider, branchName, defaultBranch, linesAdded, linesRemoved)
-	if mrURL != "" {
-		logger.Info("merge request created", "url", mrURL)
-		e.appendOutput(jobCtx, j.ID, "stdout", fmt.Sprintf("Merge request created: %s", mrURL))
-	} else if mrWarning != "" {
-		logger.Warn("merge request creation failed", "warning", mrWarning)
-		e.appendOutput(jobCtx, j.ID, "stderr", fmt.Sprintf("Warning: %s", mrWarning))
-	}
+	e.appendOutput(jobCtx, j.ID, "stdout", fmt.Sprintf("Branch '%s' is ready. Create a pull request when you're satisfied with the changes.", branchName))
 
 	// Update job to success
 	updateFields := map[string]interface{}{
@@ -183,12 +178,6 @@ func (e *Executor) Execute(ctx context.Context, msg *worker.JobMessage) error {
 		"branch":       branchName,
 		"linesAdded":   linesAdded,
 		"linesRemoved": linesRemoved,
-	}
-	if mrURL != "" {
-		updateFields["mrUrl"] = mrURL
-	}
-	if mrWarning != "" {
-		updateFields["mrWarning"] = mrWarning
 	}
 
 	if err := e.updateJobStatus(jobCtx, j.ID, job.StatusSuccess, updateFields); err != nil {
@@ -199,7 +188,6 @@ func (e *Executor) Execute(ctx context.Context, msg *worker.JobMessage) error {
 		"branch", branchName,
 		"lines_added", linesAdded,
 		"lines_removed", linesRemoved,
-		"mr_url", mrURL,
 	)
 
 	return nil
@@ -270,13 +258,33 @@ type providerInfo struct {
 // getProviderInfo fetches provider details including decrypted token
 func (e *Executor) getProviderInfo(ctx context.Context, userID, providerID string) (*providerInfo, error) {
 	key := rediskeys.GitProviderKey(userID, providerID)
+
+	e.logger.Debug("fetching provider info",
+		"user_id", userID,
+		"provider_id", providerID,
+		"key", key,
+	)
+
 	data, err := e.rdb.HGetAll(ctx, key).Result()
 	if err != nil {
+		e.logger.Debug("Redis error fetching provider", "error", err)
 		return nil, err
 	}
 	if len(data) == 0 {
+		e.logger.Debug("provider not found in Redis",
+			"key", key,
+			"user_id", userID,
+			"provider_id", providerID,
+		)
 		return nil, fmt.Errorf("provider not found: %s", providerID)
 	}
+
+	e.logger.Debug("provider data from Redis",
+		"provider_id", providerID,
+		"type", data["type"],
+		"url", data["url"],
+		"has_token", data["token"] != "",
+	)
 
 	encryptedToken, ok := data["token"]
 	if !ok {
@@ -285,8 +293,14 @@ func (e *Executor) getProviderInfo(ctx context.Context, userID, providerID strin
 
 	token, err := e.decryptor.Decrypt(encryptedToken)
 	if err != nil {
+		e.logger.Debug("failed to decrypt token", "error", err)
 		return nil, fmt.Errorf("failed to decrypt token: %w", err)
 	}
+
+	e.logger.Debug("provider info loaded successfully",
+		"provider_id", providerID,
+		"type", data["type"],
+	)
 
 	return &providerInfo{
 		Token: token,

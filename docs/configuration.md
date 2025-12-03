@@ -40,6 +40,8 @@ All configuration is done via environment variables. Copy `.env.example` to `.en
 
 ## Go Runner
 
+### Core Settings
+
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `REDIS_URL` | No | `redis://localhost:6379` | Redis connection |
@@ -49,7 +51,39 @@ All configuration is done via environment variables. Copy `.env.example` to `.en
 | `MAX_JOBS_PER_USER` | No | `3` | Per-user job limit |
 | `JOB_TIMEOUT` | No | `3600` | Job timeout (seconds) |
 | `TEMP_DIR` | No | `/tmp/repobox` | Git clone directory |
-| `CLEANUP_AFTER_JOB` | No | `true` | Delete temp after job |
+
+### Logging
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `LOG_LEVEL` | No | `info` | Log level: `debug`, `info`, `warn`, `error` |
+| `LOG_FORMAT` | No | `json` | Log format: `json` (production), `text` (development) |
+
+### Git Commit Identity
+
+Commits created by the runner use this identity:
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `GIT_AUTHOR_NAME` | No | `Repobox Bot` | Git commit author name |
+| `GIT_AUTHOR_EMAIL` | No | `bot@repobox.cloud` | Git commit author email |
+
+### Temp Directory Cleanup
+
+Runner automatically cleans up cloned repositories to prevent disk overflow:
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `CLEANUP_AFTER_JOB` | No | `true` | Delete job directory after completion |
+| `CLEANUP_ON_STARTUP` | No | `true` | Clean all temp files when runner starts |
+| `CLEANUP_INTERVAL_MINUTES` | No | `30` | Periodic cleanup interval |
+| `CLEANUP_MAX_AGE_MINUTES` | No | `120` | Delete directories older than this |
+| `CLEANUP_MAX_DISK_MB` | No | `0` | Max disk usage in MB (0 = unlimited) |
+
+**Cleanup behavior:**
+- **Startup cleanup**: Removes all orphaned directories from previous crashes
+- **Periodic cleanup**: Every 30 minutes, removes directories older than 2 hours
+- **Disk limit**: When set, removes oldest directories until under limit
 
 ## AI Agent
 

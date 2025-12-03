@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/repobox/runner/internal/cleanup"
 	"github.com/repobox/runner/internal/config"
 	"github.com/repobox/runner/internal/consumer"
 	"github.com/repobox/runner/internal/executor"
@@ -15,22 +16,42 @@ import (
 )
 
 func main() {
-	// Setup structured logging
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	}))
-	slog.SetDefault(logger)
-
-	logger.Info("Starting Repobox Runner...")
-
+	// Load config first to get log settings
 	cfg, err := config.Load()
 	if err != nil {
-		logger.Error("Failed to load config", "error", err)
+		// Fallback logger for config errors
+		slog.Error("Failed to load config", "error", err)
 		os.Exit(1)
 	}
 
+	// Setup structured logging from config
+	logger := cfg.NewLogger()
+	slog.SetDefault(logger)
+
+	logger.Info("Starting Repobox Runner...",
+		"log_level", cfg.LogLevel,
+		"log_format", cfg.LogFormat,
+	)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// Setup temp directory cleanup
+	cleaner := cleanup.New(cleanup.Config{
+		TempDir:   cfg.TempDir,
+		OnStartup: cfg.CleanupOnStartup,
+		Interval:  cfg.CleanupInterval,
+		MaxAge:    cfg.CleanupMaxAge,
+		MaxDiskMB: cfg.CleanupMaxDiskMB,
+	}, logger)
+
+	// Run startup cleanup
+	if err := cleaner.RunStartup(); err != nil {
+		logger.Warn("Startup cleanup failed", "error", err)
+	}
+
+	// Start periodic cleanup
+	cleaner.Start(ctx)
 
 	// Connect to Redis
 	redisClient, err := redis.NewClient(ctx, cfg.RedisURL)

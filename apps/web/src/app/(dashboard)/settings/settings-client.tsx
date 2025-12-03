@@ -93,7 +93,7 @@ function ProviderCard({
             </p>
             <p className="text-xs text-neutral-600 mt-1">
               {provider.reposCount} repositories • Added{" "}
-              {new Date(provider.createdAt).toLocaleDateString()}
+              {new Date(provider.createdAt).toISOString().split("T")[0]}
             </p>
           </div>
         </div>

@@ -2,8 +2,10 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -16,6 +18,20 @@ type Config struct {
 	EncryptionKey     string
 	MaxConcurrentJobs int
 	MaxJobsPerUser    int
+
+	// Logging
+	LogLevel  string // debug, info, warn, error
+	LogFormat string // json, text
+
+	// Git commit identity
+	GitAuthorName  string
+	GitAuthorEmail string
+
+	// Cleanup configuration
+	CleanupOnStartup   bool          // Clean temp dir on startup
+	CleanupInterval    time.Duration // Periodic cleanup interval (0 = disabled)
+	CleanupMaxAge      time.Duration // Max age of temp files before cleanup
+	CleanupMaxDiskMB   int           // Max disk usage in MB (0 = unlimited)
 
 	// AI Agent configuration
 	AIEnabled        bool
@@ -36,6 +52,20 @@ func Load() (*Config, error) {
 		EncryptionKey:     getEnv("ENCRYPTION_KEY", ""),
 		MaxConcurrentJobs: getEnvInt("MAX_CONCURRENT_JOBS", 10),
 		MaxJobsPerUser:    getEnvInt("MAX_JOBS_PER_USER", 3),
+
+		// Logging
+		LogLevel:  getEnv("LOG_LEVEL", "info"),
+		LogFormat: getEnv("LOG_FORMAT", "json"),
+
+		// Git commit identity
+		GitAuthorName:  getEnv("GIT_AUTHOR_NAME", "Repobox Bot"),
+		GitAuthorEmail: getEnv("GIT_AUTHOR_EMAIL", "bot@repobox.cloud"),
+
+		// Cleanup configuration
+		CleanupOnStartup:   getEnvBool("CLEANUP_ON_STARTUP", true),
+		CleanupInterval:    time.Duration(getEnvInt("CLEANUP_INTERVAL_MINUTES", 30)) * time.Minute,
+		CleanupMaxAge:      time.Duration(getEnvInt("CLEANUP_MAX_AGE_MINUTES", 120)) * time.Minute,
+		CleanupMaxDiskMB:   getEnvInt("CLEANUP_MAX_DISK_MB", 0), // 0 = unlimited
 
 		// AI Agent configuration
 		AIEnabled:        getEnvBool("AI_ENABLED", true),
@@ -85,4 +115,35 @@ func getEnvInt(key string, defaultValue int) int {
 		return i
 	}
 	return defaultValue
+}
+
+// ParseLogLevel converts string log level to slog.Level
+func ParseLogLevel(level string) slog.Level {
+	switch strings.ToLower(level) {
+	case "debug":
+		return slog.LevelDebug
+	case "warn", "warning":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
+}
+
+// NewLogger creates a new slog.Logger based on config
+func (c *Config) NewLogger() *slog.Logger {
+	level := ParseLogLevel(c.LogLevel)
+	opts := &slog.HandlerOptions{
+		Level: level,
+	}
+
+	var handler slog.Handler
+	if c.LogFormat == "text" {
+		handler = slog.NewTextHandler(os.Stdout, opts)
+	} else {
+		handler = slog.NewJSONHandler(os.Stdout, opts)
+	}
+
+	return slog.New(handler)
 }

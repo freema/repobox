@@ -10,7 +10,16 @@ import (
 
 // Git provides git operations with token handling
 type Git struct {
-	token string // plaintext token for auth
+	token       string // plaintext token for auth
+	authorName  string
+	authorEmail string
+}
+
+// Options for creating a Git helper
+type Options struct {
+	Token       string
+	AuthorName  string
+	AuthorEmail string
 }
 
 // New creates a new Git helper
@@ -21,6 +30,15 @@ func New() *Git {
 // NewWithToken creates a Git helper with authentication token
 func NewWithToken(token string) *Git {
 	return &Git{token: token}
+}
+
+// NewWithOptions creates a Git helper with full options
+func NewWithOptions(opts Options) *Git {
+	return &Git{
+		token:       opts.Token,
+		authorName:  opts.AuthorName,
+		authorEmail: opts.AuthorEmail,
+	}
 }
 
 // Clone clones a repository. If token is set, embeds it in the URL.
@@ -56,6 +74,20 @@ func (g *Git) CreateBranch(ctx context.Context, repoPath, branchName string) err
 
 // Commit stages all changes and commits with the given message
 func (g *Git) Commit(ctx context.Context, repoPath, message string) error {
+	// Configure git author if set
+	if g.authorName != "" {
+		cmd := exec.CommandContext(ctx, "git", "-C", repoPath, "config", "user.name", g.authorName)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("git config user.name failed: %s: %w", output, err)
+		}
+	}
+	if g.authorEmail != "" {
+		cmd := exec.CommandContext(ctx, "git", "-C", repoPath, "config", "user.email", g.authorEmail)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("git config user.email failed: %s: %w", output, err)
+		}
+	}
+
 	// Stage all changes
 	addCmd := exec.CommandContext(ctx, "git", "-C", repoPath, "add", "-A")
 	if output, err := addCmd.CombinedOutput(); err != nil {
