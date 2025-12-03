@@ -5,3 +5,4 @@ export { RepositorySelector } from "./repository-selector";
 export { EnvironmentSelector, ENVIRONMENTS, type EnvironmentId } from "./environment-selector";
 export { PromptInput } from "./prompt-input";
 export { OutputViewer } from "./output-viewer";
+export { SessionDetailClient } from "./session-detail-client";
