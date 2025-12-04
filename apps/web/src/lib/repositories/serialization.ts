@@ -10,7 +10,7 @@
  * - Converts null/undefined to empty string
  * - Converts camelCase keys to snake_case
  */
-export function toHash(obj: Record<string, unknown>): Record<string, string> {
+export function toHash(obj: any): Record<string, string> {
   const result: Record<string, string> = {};
 
   for (const [key, value] of Object.entries(obj)) {
