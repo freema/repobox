@@ -9,11 +9,40 @@ export interface User {
   lastLoginAt: number;
 }
 
-// Session types
-export interface Session {
+// Auth Session types (for user authentication)
+export interface AuthSession {
   userId: string;
   createdAt: number;
   expiresAt: number;
+}
+
+// Work Session types (for iterative AI work on repositories)
+export type WorkSessionStatus =
+  | "initializing"
+  | "ready"
+  | "running"
+  | "pushed"
+  | "archived"
+  | "failed";
+
+export interface WorkSession {
+  id: string;
+  userId: string;
+  providerId: string;
+  repoUrl: string;
+  repoName: string;
+  baseBranch: string;
+  workBranch: string;
+  status: WorkSessionStatus;
+  mrUrl?: string;
+  mrWarning?: string;
+  errorMessage?: string;
+  totalLinesAdded: number;
+  totalLinesRemoved: number;
+  jobCount: number;
+  lastActivityAt: number;
+  createdAt: number;
+  pushedAt?: number;
 }
 
 // Git Provider types
@@ -51,6 +80,7 @@ export interface Job {
   id: string;
   userId: string;
   providerId: string;
+  sessionId?: string; // Optional: if part of a work session
   repoUrl: string;
   repoName: string;
   branch: string;

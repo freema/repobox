@@ -1,7 +1,7 @@
 import { redis } from "../redis";
 import { REDIS_KEYS, TTL } from "./keys";
 import { toHash, fromHash, type FieldSchema } from "./serialization";
-import type { Session } from "@repobox/types";
+import type { AuthSession } from "@repobox/types";
 
 const SESSION_SCHEMA: FieldSchema = {
   userId: "string",
@@ -10,9 +10,9 @@ const SESSION_SCHEMA: FieldSchema = {
 };
 
 /**
- * Creates a new session with TTL
+ * Creates a new auth session with TTL
  */
-export async function createSession(sessionId: string, session: Session): Promise<Session> {
+export async function createSession(sessionId: string, session: AuthSession): Promise<AuthSession> {
   const key = REDIS_KEYS.session(sessionId);
 
   // Use pipeline for atomic operation
@@ -25,9 +25,9 @@ export async function createSession(sessionId: string, session: Session): Promis
 }
 
 /**
- * Gets a session by ID
+ * Gets an auth session by ID
  */
-export async function getSession(sessionId: string): Promise<Session | null> {
+export async function getSession(sessionId: string): Promise<AuthSession | null> {
   const key = REDIS_KEYS.session(sessionId);
   const data = await redis.hgetall(key);
 
@@ -35,7 +35,7 @@ export async function getSession(sessionId: string): Promise<Session | null> {
     return null;
   }
 
-  const session = fromHash<Session>(data, SESSION_SCHEMA);
+  const session = fromHash<AuthSession>(data, SESSION_SCHEMA);
 
   // Check if session has expired
   if (session.expiresAt < Date.now()) {
@@ -92,15 +92,15 @@ export function generateSessionId(): string {
 }
 
 /**
- * Creates a new session for a user
+ * Creates a new auth session for a user
  */
 export async function createUserSession(userId: string): Promise<{
   sessionId: string;
-  session: Session;
+  session: AuthSession;
 }> {
   const sessionId = generateSessionId();
   const now = Date.now();
-  const session: Session = {
+  const session: AuthSession = {
     userId,
     createdAt: now,
     expiresAt: now + TTL.session * 1000,
