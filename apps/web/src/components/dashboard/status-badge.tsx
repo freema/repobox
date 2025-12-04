@@ -1,6 +1,9 @@
-import type { JobStatus } from "@repobox/types";
+import type { JobStatus, WorkSessionStatus } from "@repobox/types";
 
-const STATUS_CONFIG: Record<JobStatus, { label: string; icon: string; color: string; bgColor: string; borderColor: string }> = {
+type StatusType = JobStatus | WorkSessionStatus;
+
+const STATUS_CONFIG: Record<StatusType, { label: string; icon: string; color: string; bgColor: string; borderColor: string }> = {
+  // Job statuses
   pending: {
     label: "Pending",
     icon: "⏸",
@@ -36,15 +39,57 @@ const STATUS_CONFIG: Record<JobStatus, { label: string; icon: string; color: str
     bgColor: "rgba(115, 115, 115, 0.1)",
     borderColor: "var(--text-muted)",
   },
+  // Work session statuses
+  initializing: {
+    label: "Initializing",
+    icon: "⏳",
+    color: "var(--warning)",
+    bgColor: "var(--warning-bg)",
+    borderColor: "var(--warning)",
+  },
+  ready: {
+    label: "Ready",
+    icon: "✓",
+    color: "var(--success)",
+    bgColor: "var(--success-bg)",
+    borderColor: "var(--success)",
+  },
+  pushed: {
+    label: "Pushed",
+    icon: "↑",
+    color: "var(--info)",
+    bgColor: "rgba(59, 130, 246, 0.1)",
+    borderColor: "var(--info)",
+  },
+  archived: {
+    label: "Archived",
+    icon: "📦",
+    color: "var(--text-muted)",
+    bgColor: "rgba(115, 115, 115, 0.1)",
+    borderColor: "var(--text-muted)",
+  },
 };
 
 interface StatusBadgeProps {
-  status: JobStatus;
+  status: StatusType;
   showLabel?: boolean;
+  size?: "sm" | "md";
 }
 
-export function StatusBadge({ status, showLabel = true }: StatusBadgeProps) {
+export function StatusBadge({ status, showLabel = true, size = "md" }: StatusBadgeProps) {
   const config = STATUS_CONFIG[status];
+
+  // Small size - just a colored dot
+  if (size === "sm") {
+    return (
+      <span
+        className="inline-block w-2 h-2 rounded-full shrink-0"
+        style={{ backgroundColor: config.color }}
+        data-testid="status-badge"
+        title={config.label}
+      />
+    );
+  }
 
   return (
     <span

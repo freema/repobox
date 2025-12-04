@@ -1,15 +1,17 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { Job, JobOutput } from "@repobox/types";
-import { useJobStream } from "@/hooks";
+import type { WorkSession, JobOutput } from "@repobox/types";
+import { useWorkSessionStream } from "@/hooks";
+import { useDashboard } from "@/contexts/dashboard-context";
 import { OutputViewer } from "./output-viewer";
 
 interface ActiveSessionOutputProps {
-  session: Job;
+  session: WorkSession;
 }
 
 export function ActiveSessionOutput({ session }: ActiveSessionOutputProps) {
+  const { dispatch } = useDashboard();
   const [initialOutput, setInitialOutput] = useState<JobOutput[]>([]);
   const [isLoadingInitial, setIsLoadingInitial] = useState(true);
 
@@ -17,9 +19,9 @@ export function ActiveSessionOutput({ session }: ActiveSessionOutputProps) {
   useEffect(() => {
     setIsLoadingInitial(true);
 
-    fetch(`/api/jobs/${session.id}/output`)
+    fetch(`/api/work-sessions/${session.id}`)
       .then((res) => {
-        if (!res.ok) throw new Error("Failed to load output");
+        if (!res.ok) throw new Error("Failed to load session");
         return res.json();
       })
       .then((data) => {
@@ -33,15 +35,32 @@ export function ActiveSessionOutput({ session }: ActiveSessionOutputProps) {
       });
   }, [session.id]);
 
-  const { status, lines, isConnected, isDone, error, reconnect } = useJobStream(
-    session.id,
-    {
-      initialJob: session,
+  const { status, lines, isConnected, isDone, error, reconnect, metadata } =
+    useWorkSessionStream(session.id, {
+      initialSession: session,
       initialOutput,
-    }
-  );
+    });
 
-  const isStreaming = status === "running" || status === "pending";
+  // Update session in context when status changes
+  useEffect(() => {
+    if (status !== session.status) {
+      dispatch({
+        type: "UPDATE_SESSION",
+        payload: {
+          ...session,
+          status,
+          jobCount: metadata.jobCount ?? session.jobCount,
+          totalLinesAdded: metadata.totalLinesAdded ?? session.totalLinesAdded,
+          totalLinesRemoved: metadata.totalLinesRemoved ?? session.totalLinesRemoved,
+          errorMessage: metadata.errorMessage ?? session.errorMessage,
+          mrUrl: metadata.mrUrl ?? session.mrUrl,
+          mrWarning: metadata.mrWarning ?? session.mrWarning,
+        },
+      });
+    }
+  }, [status, metadata, session, dispatch]);
+
+  const isStreaming = status === "initializing" || status === "running";
 
   if (isLoadingInitial) {
     return (

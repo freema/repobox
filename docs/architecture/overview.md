@@ -11,16 +11,16 @@
 │   │   Browser   │─────▶│   Next.js   │─────▶│    Redis    │         │
 │   │             │      │   Web App   │      │             │         │
 │   │  Dashboard  │◀─────│             │◀─────│  - Sessions │         │
-│   │  Settings   │      │  - Auth     │      │  - Jobs     │         │
+│   │  Settings   │      │  - Auth     │      │  - WorkSess │         │
 │   │  Sessions   │      │  - API      │      │  - Providers│         │
-│   └─────────────┘      │  - SSR      │      │  - Stream   │         │
+│   └─────────────┘      │  - SSR      │      │  - Streams  │         │
 │                        └─────────────┘      └──────┬──────┘         │
 │                                                    │                │
 │                                                    ▼                │
 │                                             ┌─────────────┐         │
 │   ┌─────────────┐      ┌─────────────┐      │  Go Runner  │         │
 │   │   GitHub    │◀─────│     Git     │◀─────│             │         │
-│   │   GitLab    │      │  Operations │      │  - Consumer │         │
+│   │   GitLab    │      │  Operations │      │  - Session  │         │
 │   │             │      │             │      │  - Workers  │         │
 │   └─────────────┘      └─────────────┘      │  - Executor │         │
 │                                             └─────────────┘         │
@@ -46,32 +46,58 @@
 | Git | GitHub, GitLab (self-hosted) |
 | Auth | NextAuth.js (GitHub, Google, LDAP) |
 
+## Core Concepts
+
+### Work Sessions
+
+A **Work Session** represents an interactive coding session on a repository. Unlike one-shot jobs, sessions persist and allow multiple prompts before pushing changes.
+
+```
+Session Lifecycle:
+  Create Session → Clone Repo → Ready → [Prompt → Run → Ready]* → Push & MR → Done
+```
+
+**Session States:**
+| State | Description |
+|-------|-------------|
+| `initializing` | Cloning repository, creating branch |
+| `ready` | Ready for prompts |
+| `running` | AI agent executing prompt |
+| `pushed` | Branch pushed, MR created |
+| `archived` | Session ended (manual or timeout) |
+| `failed` | Error occurred |
+
 ## Data Flow
 
-### Job Creation
-1. User selects repo, writes prompt
-2. Web app creates job hash in Redis
-3. Web app adds message to `jobs:stream`
-4. User sees job as "pending"
+### Session Creation
+1. User selects repo, optionally writes initial prompt
+2. Web app creates work session in Redis
+3. Web app adds message to `work_sessions:init:stream`
+4. Runner clones repo, creates work branch
+5. Status updates to "ready"
 
-### Job Processing
-1. Runner consumer reads from stream
-2. Checks per-user limit
-3. Worker claims job, updates to "running"
-4. Git clone with authenticated URL
-5. AI agent modifies code
-6. Commit and push to new branch
-7. Update job to "success"
+### Prompt Execution
+1. User writes prompt in ready session
+2. Web app adds message to `work_sessions:jobs:stream`
+3. Runner executes AI agent in existing workdir
+4. Status: ready → running → ready
+5. Changes accumulate in work branch
+
+### Push & MR Creation
+1. User clicks "Push & Create MR"
+2. Web app adds message to `work_sessions:push:stream`
+3. Runner pushes branch, creates MR via API
+4. Status updates to "pushed"
 
 ### Real-time Updates
-1. Client polls or SSE connection
-2. Runner appends to `job:{id}:output`
+1. Client SSE connection to `/api/work-sessions/{id}/stream`
+2. Runner appends to `work_session:{id}:output`
 3. Web app streams to browser
 
 ## Security Model
 
 - **Authentication**: OAuth (GitHub/Google) or LDAP
-- **Authorization**: User owns their jobs and providers
+- **Authorization**: User owns their sessions and providers
 - **Secrets**: AES-256-GCM encrypted tokens in Redis
 - **Tokens**: Masked in all logs (`ghp_****xxxx`)
 - **Network**: Runner internal, no external access
@@ -84,6 +110,14 @@
 | Redis | Single instance or cluster |
 | Runner | Worker pool + horizontal |
 
+## Cleanup
+
+Sessions are cleaned up when:
+- User archives manually
+- Session inactive for 24 hours
+- Disk limit exceeded (oldest first)
+- After push (optional)
+
 ## Implemented Phases
 
 - [x] Phase 01: Project Foundation
@@ -92,7 +126,6 @@
 - [x] Phase 04: Redis Data Layer
 - [x] Phase 05: Dashboard UI
 - [x] Phase 06: Go Runner Core
-- [ ] Phase 07: AI Agent Integration
-- [ ] Phase 08: Real-time Streaming
-- [ ] Phase 09: MR Automation
-- [ ] Phase 10: Polish & Testing
+- [x] Phase 07: Work Sessions (Iterative Mode)
+- [ ] Phase 08: AI Agent Integration
+- [ ] Phase 09: Polish & Testing

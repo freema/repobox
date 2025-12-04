@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import type { Job } from "@repobox/types";
+import type { WorkSession } from "@repobox/types";
 import { DashboardProvider } from "@/contexts/dashboard-context";
 import { ThemeProvider } from "@/contexts/theme-context";
 import { LeftPanel } from "@/components/dashboard/left-panel";
@@ -20,11 +20,11 @@ interface User {
 }
 
 interface DashboardClientProps {
-  initialJobs: Job[];
+  initialSessions: WorkSession[];
   user: User;
 }
 
-export function DashboardClient({ initialJobs, user }: DashboardClientProps) {
+export function DashboardClient({ initialSessions, user }: DashboardClientProps) {
   const [leftWidth, setLeftWidth] = useState(DEFAULT_WIDTH);
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -77,7 +77,7 @@ export function DashboardClient({ initialJobs, user }: DashboardClientProps) {
 
   return (
     <ThemeProvider>
-      <DashboardProvider initialJobs={initialJobs}>
+      <DashboardProvider initialSessions={initialSessions}>
         <div
           ref={containerRef}
           className="h-full flex"

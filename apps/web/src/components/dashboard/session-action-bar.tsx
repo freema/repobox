@@ -1,64 +1,130 @@
 "use client";
 
 import { useState } from "react";
-import type { Job } from "@repobox/types";
+import type { WorkSession } from "@repobox/types";
+import { useDashboard } from "@/contexts/dashboard-context";
 import { SessionChatInput } from "./session-chat-input";
 
 interface SessionActionBarProps {
-  session: Job;
+  session: WorkSession;
 }
 
 export function SessionActionBar({ session }: SessionActionBarProps) {
-  const [isCreatingPR, setIsCreatingPR] = useState(false);
+  const { dispatch } = useDashboard();
+  const [isPushing, setIsPushing] = useState(false);
+  const [pushError, setPushError] = useState<string | null>(null);
 
-  const canCreatePR = session.status === "success" && !session.mrUrl;
-  const hasPR = session.status === "success" && session.mrUrl;
+  // Terminal states - no more actions possible
+  const isTerminal = session.status === "pushed" || session.status === "archived" || session.status === "failed";
 
-  const handleCreatePR = async () => {
-    if (!canCreatePR) return;
+  // Can show input when not in terminal state
+  const showInput = !isTerminal;
 
-    setIsCreatingPR(true);
+  // Can push when session is ready and has at least one completed prompt
+  const canPush = session.status === "ready" && session.jobCount > 0;
+
+  // Has MR link to show
+  const hasMR = session.status === "pushed" && session.mrUrl;
+
+  const handlePush = async () => {
+    if (!canPush) return;
+
+    setIsPushing(true);
+    setPushError(null);
+
     try {
-      // TODO: Implement PR creation endpoint
-      console.log("Creating PR for session:", session.id);
+      const response = await fetch(`/api/work-sessions/${session.id}/push`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: `Changes from session ${session.id.slice(0, 8)}`,
+          description: `Automated changes from ${session.jobCount} prompt(s)`,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to push changes");
+      }
+
+      const data = await response.json();
+      dispatch({ type: "UPDATE_SESSION", payload: data.session });
     } catch (error) {
-      console.error("Failed to create PR:", error);
+      console.error("Failed to push:", error);
+      setPushError(error instanceof Error ? error.message : "Failed to push");
     } finally {
-      setIsCreatingPR(false);
+      setIsPushing(false);
     }
   };
 
+  // Don't show action bar for terminal states without MR
+  if (isTerminal && !hasMR) {
+    return null;
+  }
+
   return (
     <div
-      className="shrink-0 border-t border-neutral-800 bg-neutral-900/50 p-3"
+      className="shrink-0 border-t p-3"
+      style={{
+        borderColor: "var(--border-subtle)",
+        backgroundColor: "var(--bg-secondary)",
+      }}
       data-testid="session-action-bar"
     >
-      <div className="flex items-end gap-3">
-        {/* Session chat input */}
-        <SessionChatInput sessionId={session.id} />
+      {pushError && (
+        <div
+          className="mb-3 px-3 py-2 rounded text-sm"
+          style={{
+            backgroundColor: "var(--error-bg)",
+            color: "var(--error)",
+            border: "1px solid var(--error)",
+          }}
+        >
+          {pushError}
+        </div>
+      )}
 
-        {/* Create PR button - shown when job succeeded without MR */}
-        {canCreatePR && (
+      {/* Top row: Branch info + action buttons */}
+      <div className="flex items-center gap-2 mb-3">
+        {/* Branch name chip */}
+        <div
+          className="flex-1 px-3 py-1.5 rounded text-xs font-mono truncate"
+          style={{
+            backgroundColor: "var(--bg-tertiary)",
+            color: "var(--text-secondary)",
+            border: "1px solid var(--border-subtle)",
+          }}
+        >
+          {session.workBranch}
+        </div>
+
+        {/* Create PR button */}
+        {canPush && (
           <button
             type="button"
-            onClick={handleCreatePR}
-            disabled={isCreatingPR}
-            className="shrink-0 flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            data-testid="create-pr-button"
+            onClick={handlePush}
+            disabled={isPushing}
+            className="shrink-0 flex items-center gap-2 px-3 py-1.5 rounded text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{
+              backgroundColor: "var(--accent-primary)",
+              color: "var(--bg-primary)",
+            }}
+            data-testid="push-button"
           >
-            {isCreatingPR ? (
+            {isPushing ? (
               <>
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <div
+                  className="w-3 h-3 rounded-full animate-spin"
+                  style={{
+                    border: "2px solid var(--bg-primary)",
+                    borderTopColor: "transparent",
+                  }}
+                />
                 Creating...
               </>
             ) : (
               <>
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -72,21 +138,20 @@ export function SessionActionBar({ session }: SessionActionBarProps) {
           </button>
         )}
 
-        {/* View PR button - shown when MR exists */}
-        {hasPR && (
+        {/* View MR button - shown when MR exists */}
+        {hasMR && (
           <a
             href={session.mrUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="shrink-0 flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg text-sm font-medium transition-colors"
-            data-testid="view-pr-button"
+            className="shrink-0 flex items-center gap-2 px-3 py-1.5 rounded text-xs font-medium transition-colors"
+            style={{
+              backgroundColor: "var(--success)",
+              color: "var(--bg-primary)",
+            }}
+            data-testid="view-mr-button"
           >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -98,6 +163,31 @@ export function SessionActionBar({ session }: SessionActionBarProps) {
           </a>
         )}
       </div>
+
+      {/* MR warning if present */}
+      {session.mrWarning && (
+        <div
+          className="flex items-center gap-2 px-3 py-2 rounded text-xs mb-3"
+          style={{
+            backgroundColor: "var(--warning-bg)",
+            color: "var(--warning)",
+            border: "1px solid var(--warning)",
+          }}
+        >
+          <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+            />
+          </svg>
+          {session.mrWarning}
+        </div>
+      )}
+
+      {/* Bottom row: Reply input */}
+      {showInput && <SessionChatInput sessionId={session.id} />}
     </div>
   );
 }

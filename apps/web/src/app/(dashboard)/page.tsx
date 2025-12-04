@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth";
-import { getUserJobs } from "@/lib/repositories";
+import { getUserWorkSessions } from "@/lib/repositories/work-session";
 import { DashboardClient } from "./dashboard-client";
 
 export default async function DashboardPage() {
@@ -9,12 +9,12 @@ export default async function DashboardPage() {
     return null;
   }
 
-  // Fetch user's job history
-  const jobs = await getUserJobs(session.user.id, { limit: 20 });
+  // Fetch user's work sessions
+  const sessions = await getUserWorkSessions(session.user.id, { limit: 20 });
 
   return (
     <DashboardClient
-      initialJobs={jobs}
+      initialSessions={sessions}
       user={session.user}
     />
   );

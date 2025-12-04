@@ -179,7 +179,7 @@ export function RightPanel() {
   }
 
   const isStreaming =
-    activeSession.status === "running" || activeSession.status === "pending";
+    activeSession.status === "initializing" || activeSession.status === "running";
 
   return (
     <div
@@ -192,41 +192,21 @@ export function RightPanel() {
         className="shrink-0 px-4 py-3"
         style={{ borderBottom: "1px solid var(--border-subtle)" }}
       >
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-3 mb-1">
-              <StatusBadge status={activeSession.status} />
-              {isStreaming && (
-                <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-                  Live
-                </span>
-              )}
-            </div>
-            <h1
-              className="text-sm font-semibold truncate"
-              style={{ color: "var(--text-primary)" }}
-              data-testid="session-prompt"
-            >
-              {activeSession.prompt}
-            </h1>
-            <div
-              className="flex items-center gap-2 mt-1 text-xs font-mono"
-              style={{ color: "var(--text-muted)" }}
-            >
-              <span>{activeSession.repoName}</span>
-              <span>•</span>
-              <span>{activeSession.branch}</span>
-              {activeSession.status === "success" && (
-                <>
-                  <span>•</span>
-                  <span>
-                    <span style={{ color: "var(--diff-add)" }}>+{activeSession.linesAdded}</span>
-                    {" "}
-                    <span style={{ color: "var(--diff-remove)" }}>-{activeSession.linesRemoved}</span>
-                  </span>
-                </>
-              )}
-            </div>
+        <div className="flex items-center justify-between gap-4">
+          <h1
+            className="text-sm font-semibold truncate flex-1"
+            style={{ color: "var(--text-primary)" }}
+            data-testid="session-title"
+          >
+            {activeSession.repoName}
+          </h1>
+          <div className="flex items-center gap-2 shrink-0">
+            {isStreaming && (
+              <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                Live
+              </span>
+            )}
+            <StatusBadge status={activeSession.status} />
           </div>
         </div>
       </header>
@@ -246,8 +226,8 @@ export function RightPanel() {
         </div>
       )}
 
-      {/* MR warning if creation failed */}
-      {activeSession.status === "success" && activeSession.mrWarning && (
+      {/* MR warning if creation had issues */}
+      {activeSession.status === "pushed" && activeSession.mrWarning && (
         <div
           className="shrink-0 mx-4 mt-4 p-3 rounded-lg"
           style={{
@@ -263,7 +243,7 @@ export function RightPanel() {
 
       {/* Output viewer - takes remaining space */}
       <div className="flex-1 min-h-0 p-4">
-        <ActiveSessionOutput session={activeSession} />
+        <ActiveSessionOutput key={activeSession.id} session={activeSession} />
       </div>
 
       {/* Bottom action bar */}
@@ -271,3 +251,4 @@ export function RightPanel() {
     </div>
   );
 }
+

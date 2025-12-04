@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi, type Mock } from "vitest";
-import type { Session } from "@repobox/types";
+import type { AuthSession } from "@repobox/types";
 
 const mockPipeline = {
   hset: vi.fn().mockReturnThis(),
@@ -39,7 +39,7 @@ describe("SessionRepository", () => {
     vi.clearAllMocks();
   });
 
-  const mockSession: Session = {
+  const mockSession: AuthSession = {
     userId: "user-123",
     createdAt: 1700000000000,
     expiresAt: 1700000000000 + TTL.session * 1000,

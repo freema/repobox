@@ -7,7 +7,7 @@ import {
   type ReactNode,
   type Dispatch,
 } from "react";
-import type { Job } from "@repobox/types";
+import type { WorkSession } from "@repobox/types";
 import type { EnvironmentId } from "@/components/dashboard/environment-selector";
 
 // Types
@@ -29,7 +29,7 @@ export interface DashboardState {
   environment: EnvironmentId;
 
   // Sessions
-  sessions: Job[];
+  sessions: WorkSession[];
   sessionFilter: SessionFilter;
   sessionsPage: number;
   hasMoreSessions: boolean;
@@ -58,18 +58,19 @@ type DashboardAction =
   | { type: "SET_ACTIVE_SESSION"; payload: string | null }
   | { type: "SET_NEW_PROMPT"; payload: string }
   | { type: "SET_REPLY_PROMPT"; payload: string }
-  | { type: "SET_SESSIONS"; payload: Job[] }
-  | { type: "APPEND_SESSIONS"; payload: Job[] }
+  | { type: "SET_SESSIONS"; payload: WorkSession[] }
+  | { type: "APPEND_SESSIONS"; payload: WorkSession[] }
   | { type: "SET_HAS_MORE_SESSIONS"; payload: boolean }
   | { type: "SET_LOADING_SESSIONS"; payload: boolean }
   | { type: "INCREMENT_SESSIONS_PAGE" }
   | { type: "START_CREATING_SESSION" }
   | { type: "FINISH_CREATING_SESSION" }
-  | { type: "CREATE_SESSION_SUCCESS"; payload: Job }
+  | { type: "CREATE_SESSION_SUCCESS"; payload: WorkSession }
   | { type: "START_SUBMITTING_REPLY" }
   | { type: "FINISH_SUBMITTING_REPLY" }
   | { type: "TOGGLE_PROFILE_MODAL" }
-  | { type: "UPDATE_SESSION"; payload: Job };
+  | { type: "UPDATE_SESSION"; payload: WorkSession }
+  | { type: "ARCHIVE_SESSION"; payload: string };
 
 // Initial state
 const initialState: DashboardState = {
@@ -168,6 +169,16 @@ function dashboardReducer(
         ),
       };
 
+    case "ARCHIVE_SESSION":
+      return {
+        ...state,
+        sessions: state.sessions.map((s) =>
+          s.id === action.payload ? { ...s, status: "archived" as const } : s
+        ),
+        // Clear active session if it was archived
+        activeSessionId: state.activeSessionId === action.payload ? null : state.activeSessionId,
+      };
+
     default:
       return state;
   }
@@ -184,17 +195,17 @@ const DashboardContext = createContext<DashboardContextValue | null>(null);
 // Provider
 interface DashboardProviderProps {
   children: ReactNode;
-  initialJobs?: Job[];
+  initialSessions?: WorkSession[];
 }
 
 export function DashboardProvider({
   children,
-  initialJobs = [],
+  initialSessions = [],
 }: DashboardProviderProps) {
   const [state, dispatch] = useReducer(dashboardReducer, {
     ...initialState,
-    sessions: initialJobs,
-    hasMoreSessions: initialJobs.length >= 20,
+    sessions: initialSessions,
+    hasMoreSessions: initialSessions.length >= 20,
   });
 
   return (
@@ -214,7 +225,7 @@ export function useDashboard() {
 }
 
 // Helper to get active session from state
-export function getActiveSession(state: DashboardState): Job | null {
+export function getActiveSession(state: DashboardState): WorkSession | null {
   if (!state.activeSessionId) return null;
   return state.sessions.find((s) => s.id === state.activeSessionId) ?? null;
 }

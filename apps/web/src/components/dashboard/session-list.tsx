@@ -11,10 +11,14 @@ export function SessionList() {
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
   // Filter sessions based on current filter
-  const filteredSessions = state.sessions.filter((job) => {
+  const filteredSessions = state.sessions.filter((session) => {
     if (state.sessionFilter === "all") return true;
-    // "active" filter shows running and pending jobs
-    return job.status === "running" || job.status === "pending";
+    // "active" filter shows non-terminal sessions
+    return (
+      session.status === "initializing" ||
+      session.status === "ready" ||
+      session.status === "running"
+    );
   });
 
   // Load more sessions
@@ -31,12 +35,12 @@ export function SessionList() {
         filter: state.sessionFilter,
       });
 
-      const response = await fetch(`/api/jobs?${params}`);
+      const response = await fetch(`/api/work-sessions?${params}`);
       if (!response.ok) throw new Error("Failed to load sessions");
 
       const data = await response.json();
 
-      dispatch({ type: "APPEND_SESSIONS", payload: data.jobs });
+      dispatch({ type: "APPEND_SESSIONS", payload: data.sessions });
       dispatch({ type: "SET_HAS_MORE_SESSIONS", payload: data.hasMore });
       dispatch({ type: "INCREMENT_SESSIONS_PAGE" });
     } catch (error) {
@@ -65,8 +69,8 @@ export function SessionList() {
     return () => observer.disconnect();
   }, [loadMoreSessions]);
 
-  const handleSessionClick = (jobId: string) => {
-    dispatch({ type: "SET_ACTIVE_SESSION", payload: jobId });
+  const handleSessionClick = (sessionId: string) => {
+    dispatch({ type: "SET_ACTIVE_SESSION", payload: sessionId });
   };
 
   return (
@@ -80,12 +84,12 @@ export function SessionList() {
         </div>
       ) : (
         <>
-          {filteredSessions.map((job) => (
+          {filteredSessions.map((session) => (
             <SessionCard
-              key={job.id}
-              job={job}
-              isActive={job.id === state.activeSessionId}
-              onClick={() => handleSessionClick(job.id)}
+              key={session.id}
+              session={session}
+              isActive={session.id === state.activeSessionId}
+              onClick={() => handleSessionClick(session.id)}
             />
           ))}
 
