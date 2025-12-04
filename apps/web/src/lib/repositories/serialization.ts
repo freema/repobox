@@ -10,8 +10,7 @@
  * - Converts null/undefined to empty string
  * - Converts camelCase keys to snake_case
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function toHash(obj: any): Record<string, string> {
+export function toHash(obj: Record<string, unknown>): Record<string, string> {
   const result: Record<string, string> = {};
 
   for (const [key, value] of Object.entries(obj)) {
