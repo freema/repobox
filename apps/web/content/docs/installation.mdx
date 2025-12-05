@@ -1,0 +1,76 @@
+---
+title: Installation
+description: How to install Repobox
+---
+
+# Installation
+
+Repobox can be installed using Docker Compose for both development and production environments.
+
+## Requirements
+
+- Docker 24.0+
+- Docker Compose 2.0+
+- 4GB RAM minimum
+- 10GB disk space
+
+## Development Setup
+
+For development, use the task runner:
+
+```bash
+# Start all services (Redis + Web + Runner)
+task dev
+
+# Or start in background
+task dev:bg
+```
+
+### Available Commands
+
+```bash
+task dev          # Start all services
+task stop         # Stop all containers
+task clean        # Stop and remove volumes
+task build        # Build all services
+task logs         # View all logs
+task ps           # Show running containers
+```
+
+## Production Setup
+
+For production deployment, create a `docker-compose.prod.yml`:
+
+```yaml
+version: '3.8'
+
+services:
+  web:
+    image: repobox/web:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+
+  runner:
+    image: repobox/runner:latest
+    environment:
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis-data:/data
+
+volumes:
+  redis-data:
+```
+
+## Environment Variables
+
+See [Configuration](/docs/configuration) for all available environment variables.

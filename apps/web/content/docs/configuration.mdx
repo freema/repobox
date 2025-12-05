@@ -1,0 +1,56 @@
+---
+title: Configuration
+description: Configure Repobox for your environment
+---
+
+# Configuration
+
+Repobox is configured through environment variables. Create a `.env.local` file in the web app directory.
+
+## Required Variables
+
+```bash
+# Authentication
+AUTH_SECRET=your-secret-key-here
+
+# Redis
+REDIS_URL=redis://localhost:6379
+```
+
+## Git Provider Setup
+
+### GitHub
+
+```bash
+AUTH_GITHUB_ID=your-github-oauth-app-id
+AUTH_GITHUB_SECRET=your-github-oauth-app-secret
+```
+
+### GitLab
+
+```bash
+AUTH_GITLAB_ID=your-gitlab-application-id
+AUTH_GITLAB_SECRET=your-gitlab-application-secret
+```
+
+## Optional Variables
+
+```bash
+# Runner configuration
+RUNNER_TIMEOUT=3600
+RUNNER_MAX_JOBS=10
+
+# Web configuration
+NEXT_PUBLIC_APP_URL=https://your-domain.com
+```
+
+## Security Considerations
+
+- Never commit `.env.local` to version control
+- Use strong, unique values for `AUTH_SECRET`
+- Rotate secrets regularly
+- Use HTTPS in production
+
+## Next Steps
+
+After configuration, proceed to set up your Git providers in the application Settings page.

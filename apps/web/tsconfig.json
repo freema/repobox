@@ -26,6 +26,9 @@
       "@/*": [
         "./src/*"
       ],
+      "@/.source": [
+        "./.source/server"
+      ],
       "@repobox/types": [
         "../../packages/types/src"
       ]
