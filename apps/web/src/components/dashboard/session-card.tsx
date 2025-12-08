@@ -109,12 +109,12 @@ export function SessionCard({ session, isActive = false, onClick }: SessionCardP
           <span
             className="px-1.5 py-0.5 rounded text-xs"
             style={{
-              backgroundColor: "var(--success-bg)",
-              color: "var(--success)",
-              border: "1px solid var(--success)",
+              backgroundColor: "rgba(59, 130, 246, 0.15)",
+              color: "#3b82f6",
+              border: "1px solid #3b82f6",
             }}
           >
-            ✓ Merged
+            ↑ PR Open
           </span>
         </div>
       )}

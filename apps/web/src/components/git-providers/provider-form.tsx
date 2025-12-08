@@ -12,6 +12,7 @@ export function ProviderForm({ onSuccess }: ProviderFormProps) {
   const [type, setType] = useState<ProviderType>("gitlab");
   const [url, setUrl] = useState("");
   const [token, setToken] = useState("");
+  const [isSelfHosted, setIsSelfHosted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,6 +45,7 @@ export function ProviderForm({ onSuccess }: ProviderFormProps) {
       // Reset form
       setToken("");
       setUrl("");
+      setIsSelfHosted(false);
       onSuccess?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
@@ -83,20 +85,6 @@ export function ProviderForm({ onSuccess }: ProviderFormProps) {
       </div>
 
       <div>
-        <label htmlFor="url" className="block text-sm font-medium text-gray-300 mb-1">
-          Instance URL <span className="text-gray-500">(optional, for self-hosted)</span>
-        </label>
-        <input
-          type="url"
-          id="url"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder={defaultUrls[type]}
-          className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-        />
-      </div>
-
-      <div>
         <label htmlFor="token" className="block text-sm font-medium text-gray-300 mb-1">
           Personal Access Token
         </label>
@@ -121,6 +109,33 @@ export function ProviderForm({ onSuccess }: ProviderFormProps) {
             </>
           )}
         </p>
+      </div>
+
+      <div>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={isSelfHosted}
+            onChange={(e) => {
+              setIsSelfHosted(e.target.checked);
+              if (!e.target.checked) setUrl("");
+            }}
+            className="rounded border-gray-700 bg-gray-800 text-orange-500 focus:ring-orange-500"
+          />
+          <span className="text-sm text-gray-300">Self-hosted instance</span>
+        </label>
+        {isSelfHosted && (
+          <input
+            type="url"
+            id="url"
+            name="instance-url"
+            autoComplete="off"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder={defaultUrls[type]}
+            className="mt-2 w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+          />
+        )}
       </div>
 
       {error && (

@@ -33,8 +33,8 @@ export function PromptInput({
   }, [value, compact]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Submit on Cmd/Ctrl + Enter
-    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+    // Submit on Enter (without Shift for newline)
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       if (value.trim() && !disabled) {
         onSubmit();
@@ -118,54 +118,6 @@ export function PromptInput({
         className="w-full bg-transparent px-4 py-3 text-sm resize-none focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
         style={{ color: "var(--text-primary)" }}
       />
-      <div
-        className="flex items-center justify-between px-3 py-2"
-        style={{ borderTop: "1px solid var(--border-subtle)" }}
-      >
-        <div className="text-xs" style={{ color: "var(--text-muted)" }}>
-          <kbd
-            className="px-1.5 py-0.5 rounded text-xs"
-            style={{
-              backgroundColor: "var(--bg-hover)",
-              color: "var(--text-secondary)",
-            }}
-          >
-            Cmd
-          </kbd>
-          <span className="mx-1">+</span>
-          <kbd
-            className="px-1.5 py-0.5 rounded text-xs"
-            style={{
-              backgroundColor: "var(--bg-hover)",
-              color: "var(--text-secondary)",
-            }}
-          >
-            Enter
-          </kbd>
-          <span className="ml-2">to send</span>
-        </div>
-        <button
-          type="button"
-          onClick={onSubmit}
-          disabled={disabled || !isValid}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{
-            backgroundColor: isValid && !disabled ? "var(--accent-primary)" : "var(--bg-hover)",
-            color: isValid && !disabled ? "#0d0d0d" : "var(--text-muted)",
-          }}
-          data-testid="prompt-submit"
-        >
-          Send
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M5 10l7-7m0 0l7 7m-7-7v18"
-            />
-          </svg>
-        </button>
-      </div>
     </div>
   );
 }

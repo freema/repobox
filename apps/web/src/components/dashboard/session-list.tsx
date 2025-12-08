@@ -50,6 +50,13 @@ export function SessionList() {
     }
   }, [state.isLoadingSessions, state.hasMoreSessions, state.sessions.length, state.sessionFilter, dispatch]);
 
+  // Load sessions when filter changes (sessions are cleared on filter change)
+  useEffect(() => {
+    if (state.sessions.length === 0 && state.hasMoreSessions && !state.isLoadingSessions) {
+      loadMoreSessions();
+    }
+  }, [state.sessionFilter, state.sessions.length, state.hasMoreSessions, state.isLoadingSessions, loadMoreSessions]);
+
   // Intersection observer for lazy loading
   useEffect(() => {
     const observer = new IntersectionObserver(

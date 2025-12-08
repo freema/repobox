@@ -3,6 +3,24 @@
 import { useDashboard } from "@/contexts/dashboard-context";
 import { PromptInput } from "./prompt-input";
 
+async function waitForSessionReady(
+  sessionId: string,
+  maxAttempts = 30,
+  interval = 500
+): Promise<boolean> {
+  for (let i = 0; i < maxAttempts; i++) {
+    const response = await fetch(`/api/work-sessions/${sessionId}`);
+    if (!response.ok) return false;
+
+    const { session } = await response.json();
+    if (session.status === "ready") return true;
+    if (session.status === "error" || session.status === "archived") return false;
+
+    await new Promise((resolve) => setTimeout(resolve, interval));
+  }
+  return false;
+}
+
 export function NewSessionInput() {
   const { state, dispatch } = useDashboard();
 
@@ -32,8 +50,15 @@ export function NewSessionInput() {
       const { session } = await sessionResponse.json();
       dispatch({ type: "CREATE_SESSION_SUCCESS", payload: session });
 
-      // Step 2: If there's a prompt, submit it to the new session
+      // Step 2: If there's a prompt, wait for session to be ready and submit it
       if (state.newSessionPrompt.trim()) {
+        const isReady = await waitForSessionReady(session.id);
+
+        if (!isReady) {
+          console.error("Session did not become ready in time");
+          return;
+        }
+
         const promptResponse = await fetch(`/api/work-sessions/${session.id}/prompt`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },

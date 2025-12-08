@@ -1,11 +1,45 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { WorkSession } from "@repobox/types";
-import { DashboardProvider } from "@/contexts/dashboard-context";
+import { DashboardProvider, useDashboard } from "@/contexts/dashboard-context";
 import { ThemeProvider } from "@/contexts/theme-context";
 import { LeftPanel } from "@/components/dashboard/left-panel";
 import { RightPanel } from "@/components/dashboard/right-panel";
+
+// Sync activeSessionId with URL
+function UrlSync() {
+  const { state, dispatch } = useDashboard();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const initializedRef = useRef(false);
+
+  // On mount - set active session from URL
+  useEffect(() => {
+    if (initializedRef.current) return;
+    initializedRef.current = true;
+
+    const sessionId = searchParams.get("session");
+    if (sessionId && !state.activeSessionId) {
+      dispatch({ type: "SET_ACTIVE_SESSION", payload: sessionId });
+    }
+  }, [searchParams, state.activeSessionId, dispatch]);
+
+  // Update URL when active session changes
+  useEffect(() => {
+    const currentParam = searchParams.get("session");
+    if (state.activeSessionId !== currentParam) {
+      if (state.activeSessionId) {
+        router.replace(`/?session=${state.activeSessionId}`, { scroll: false });
+      } else if (currentParam) {
+        router.replace("/", { scroll: false });
+      }
+    }
+  }, [state.activeSessionId, searchParams, router]);
+
+  return null;
+}
 
 const STORAGE_KEY = "repobox-left-panel-width";
 const DEFAULT_WIDTH = 40;
@@ -78,6 +112,7 @@ export function DashboardClient({ initialSessions, user }: DashboardClientProps)
   return (
     <ThemeProvider>
       <DashboardProvider initialSessions={initialSessions}>
+        <UrlSync />
         <div
           ref={containerRef}
           className="h-full flex"

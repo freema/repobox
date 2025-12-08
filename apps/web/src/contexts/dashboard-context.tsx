@@ -162,6 +162,7 @@ function dashboardReducer(
       return { ...state, isProfileModalOpen: !state.isProfileModalOpen };
 
     case "UPDATE_SESSION":
+      if (!action.payload) return state;
       return {
         ...state,
         sessions: state.sessions.map((s) =>

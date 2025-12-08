@@ -4,6 +4,7 @@ import {
   getWorkSession,
   updateWorkSessionStatus,
   getWorkSessionJobIds,
+  getWorkSessionOutput,
 } from "@/lib/repositories/work-session";
 import { getJob } from "@/lib/repositories";
 import type { Job } from "@repobox/types";
@@ -53,9 +54,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       }
     }
 
+    // Get output from Redis
+    const output = await getWorkSessionOutput(sessionId);
+
     return NextResponse.json({
       session: workSession,
       jobs,
+      output,
     });
   } catch (error) {
     console.error("[api/work-sessions/:id] Failed to fetch session:", error);
