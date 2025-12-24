@@ -15,6 +15,7 @@ const WORK_SESSION_SCHEMA: FieldSchema = {
   mrUrl: "optional_string",
   mrWarning: "optional_string",
   errorMessage: "optional_string",
+  lastJobStatus: "optional_string",
   totalLinesAdded: "number",
   totalLinesRemoved: "number",
   jobCount: "number",

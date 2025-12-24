@@ -66,7 +66,7 @@ func (e *InitExecutor) Execute(ctx context.Context, msg *InitMessage) error {
 	gitDir := filepath.Join(repoPath, ".git")
 	if _, err := os.Stat(gitDir); err == nil {
 		logger.Info("repository already cloned, skipping clone")
-		e.appendOutput(ctx, msg.SessionID, "stdout", "Repository already initialized.")
+		e.appendOutput(ctx, msg.SessionID, "stdout", "runner", "Repository already initialized.")
 
 		// Update session status to ready (in case previous run failed after clone)
 		if err := e.updateSessionStatus(ctx, msg.SessionID, StatusReady, nil); err != nil {
@@ -75,7 +75,7 @@ func (e *InitExecutor) Execute(ctx context.Context, msg *InitMessage) error {
 		return nil
 	}
 
-	e.appendOutput(ctx, msg.SessionID, "stdout", "Cloning repository...")
+	e.appendOutput(ctx, msg.SessionID, "stdout", "runner", "Cloning repository...")
 
 	// Clone repository
 	g := git.NewWithOptions(git.Options{
@@ -88,17 +88,17 @@ func (e *InitExecutor) Execute(ctx context.Context, msg *InitMessage) error {
 		return e.failSession(ctx, msg.SessionID, fmt.Errorf("clone failed: %w", err))
 	}
 
-	e.appendOutput(ctx, msg.SessionID, "stdout", "Clone completed.")
+	e.appendOutput(ctx, msg.SessionID, "stdout", "runner", "Clone completed.")
 
 	// Create work branch
 	branchName := fmt.Sprintf("repobox/%s", msg.SessionID[:8])
-	e.appendOutput(ctx, msg.SessionID, "stdout", fmt.Sprintf("Creating branch %s...", branchName))
+	e.appendOutput(ctx, msg.SessionID, "stdout", "runner", fmt.Sprintf("Creating branch %s...", branchName))
 
 	if err := g.CreateBranch(ctx, repoPath, branchName); err != nil {
 		return e.failSession(ctx, msg.SessionID, fmt.Errorf("create branch failed: %w", err))
 	}
 
-	e.appendOutput(ctx, msg.SessionID, "stdout", "Work session ready. You can now submit prompts.")
+	e.appendOutput(ctx, msg.SessionID, "stdout", "runner", "Work session ready. You can now submit prompts.")
 
 	// Update session status to ready
 	if err := e.updateSessionStatus(ctx, msg.SessionID, StatusReady, nil); err != nil {
@@ -169,7 +169,7 @@ func (e *InitExecutor) updateSessionStatus(ctx context.Context, sessionID string
 
 // failSession marks a session as failed
 func (e *InitExecutor) failSession(ctx context.Context, sessionID string, err error) error {
-	e.appendOutput(ctx, sessionID, "stderr", fmt.Sprintf("Error: %s", err.Error()))
+	e.appendOutput(ctx, sessionID, "stderr", "runner", fmt.Sprintf("Error: %s", err.Error()))
 
 	e.updateSessionStatus(ctx, sessionID, StatusFailed, map[string]interface{}{
 		"error_message": err.Error(),
@@ -179,12 +179,13 @@ func (e *InitExecutor) failSession(ctx context.Context, sessionID string, err er
 }
 
 // appendOutput adds output line to session output list
-func (e *InitExecutor) appendOutput(ctx context.Context, sessionID, stream, line string) {
+func (e *InitExecutor) appendOutput(ctx context.Context, sessionID, stream, source, line string) {
 	key := rediskeys.WorkSessionOutputKey(sessionID)
 	output := map[string]interface{}{
 		"timestamp": time.Now().UnixMilli(),
 		"line":      line,
 		"stream":    stream,
+		"source":    source,
 	}
 	data, _ := json.Marshal(output)
 	e.rdb.RPush(ctx, key, string(data))

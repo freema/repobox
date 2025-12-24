@@ -20,6 +20,7 @@ interface WorkSessionStreamState {
     totalLinesAdded?: number;
     totalLinesRemoved?: number;
     errorMessage?: string;
+    lastJobStatus?: string;
     mrUrl?: string;
     mrWarning?: string;
     lastActivityAt?: number;
@@ -76,6 +77,7 @@ export function useWorkSessionStream(
       totalLinesAdded: initialSession?.totalLinesAdded,
       totalLinesRemoved: initialSession?.totalLinesRemoved,
       errorMessage: initialSession?.errorMessage,
+      lastJobStatus: initialSession?.lastJobStatus,
       mrUrl: initialSession?.mrUrl,
       mrWarning: initialSession?.mrWarning,
       lastActivityAt: initialSession?.lastActivityAt,
@@ -129,6 +131,7 @@ export function useWorkSessionStream(
             totalLinesAdded: data.totalLinesAdded ?? prev.metadata.totalLinesAdded,
             totalLinesRemoved: data.totalLinesRemoved ?? prev.metadata.totalLinesRemoved,
             errorMessage: data.errorMessage ?? prev.metadata.errorMessage,
+            lastJobStatus: data.lastJobStatus ?? prev.metadata.lastJobStatus,
             mrUrl: data.mrUrl ?? prev.metadata.mrUrl,
             mrWarning: data.mrWarning ?? prev.metadata.mrWarning,
             lastActivityAt: data.lastActivityAt ?? prev.metadata.lastActivityAt,

@@ -46,16 +46,14 @@ const DEFAULT_WIDTH = 40;
 const MIN_WIDTH = 20;
 const MAX_WIDTH = 60;
 
-interface User {
-  id: string;
-  name?: string | null;
-  email?: string | null;
-  image?: string | null;
-}
-
 interface DashboardClientProps {
   initialSessions: WorkSession[];
-  user: User;
+  user: {
+    id: string;
+    name?: string | null;
+    email?: string | null;
+    image?: string | null;
+  };
 }
 
 export function DashboardClient({ initialSessions, user }: DashboardClientProps) {
@@ -111,7 +109,7 @@ export function DashboardClient({ initialSessions, user }: DashboardClientProps)
 
   return (
     <ThemeProvider>
-      <DashboardProvider initialSessions={initialSessions}>
+      <DashboardProvider initialSessions={initialSessions} user={user}>
         <UrlSync />
         <div
           ref={containerRef}
@@ -131,16 +129,23 @@ export function DashboardClient({ initialSessions, user }: DashboardClientProps)
 
           {/* Resizable divider */}
           <div
-            className="w-1 cursor-col-resize transition-colors"
+            className="cursor-col-resize transition-all duration-150 hover:w-1"
             style={{
+              width: isDragging ? "4px" : "1px",
               backgroundColor: isDragging ? "var(--accent-primary)" : "var(--border-subtle)",
             }}
             onMouseDown={handleMouseDown}
             onMouseEnter={(e) => {
-              if (!isDragging) e.currentTarget.style.backgroundColor = "var(--border-default)";
+              if (!isDragging) {
+                e.currentTarget.style.backgroundColor = "var(--border-default)";
+                e.currentTarget.style.width = "4px";
+              }
             }}
             onMouseLeave={(e) => {
-              if (!isDragging) e.currentTarget.style.backgroundColor = "var(--border-subtle)";
+              if (!isDragging) {
+                e.currentTarget.style.backgroundColor = "var(--border-subtle)";
+                e.currentTarget.style.width = "1px";
+              }
             }}
           />
 

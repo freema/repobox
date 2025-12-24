@@ -69,7 +69,7 @@ func (e *PushExecutor) Execute(ctx context.Context, msg *PushMessage) error {
 		return e.failSession(ctx, msg.SessionID, fmt.Errorf("failed to get provider: %w", err))
 	}
 
-	e.appendOutput(ctx, msg.SessionID, "stdout", "Pushing branch to remote...")
+	e.appendOutput(ctx, msg.SessionID, "stdout", "runner", "Pushing branch to remote...")
 
 	// Push branch
 	g := git.NewWithOptions(git.Options{
@@ -82,7 +82,7 @@ func (e *PushExecutor) Execute(ctx context.Context, msg *PushMessage) error {
 		return e.failSession(ctx, msg.SessionID, fmt.Errorf("push failed: %w", err))
 	}
 
-	e.appendOutput(ctx, msg.SessionID, "stdout", "Push completed.")
+	e.appendOutput(ctx, msg.SessionID, "stdout", "runner", "Push completed.")
 
 	// Create MR/PR
 	mrURL, mrWarning := e.createMergeRequest(ctx, session, provider, msg)
@@ -93,11 +93,11 @@ func (e *PushExecutor) Execute(ctx context.Context, msg *PushMessage) error {
 
 	if mrURL != "" {
 		updates["mr_url"] = mrURL
-		e.appendOutput(ctx, msg.SessionID, "stdout", fmt.Sprintf("Merge request created: %s", mrURL))
+		e.appendOutput(ctx, msg.SessionID, "stdout", "runner", fmt.Sprintf("Merge request created: %s", mrURL))
 	}
 	if mrWarning != "" {
 		updates["mr_warning"] = mrWarning
-		e.appendOutput(ctx, msg.SessionID, "stderr", fmt.Sprintf("Warning: %s", mrWarning))
+		e.appendOutput(ctx, msg.SessionID, "stderr", "runner", fmt.Sprintf("Warning: %s", mrWarning))
 	}
 
 	// Update session status to pushed
@@ -154,7 +154,7 @@ func (e *PushExecutor) createMergeRequest(
 		})
 	}
 
-	e.appendOutput(ctx, session.ID, "stdout", "Creating merge request...")
+	e.appendOutput(ctx, session.ID, "stdout", "runner", "Creating merge request...")
 
 	result, err := creator.Create(mergerequest.CreateParams{
 		Token:        provider.Token,
@@ -259,7 +259,7 @@ func (e *PushExecutor) updateSessionStatus(ctx context.Context, sessionID string
 
 // failSession marks a session as failed and returns to ready state
 func (e *PushExecutor) failSession(ctx context.Context, sessionID string, err error) error {
-	e.appendOutput(ctx, sessionID, "stderr", fmt.Sprintf("Error: %s", err.Error()))
+	e.appendOutput(ctx, sessionID, "stderr", "runner", fmt.Sprintf("Error: %s", err.Error()))
 
 	// Return to ready so user can retry
 	e.updateSessionStatus(ctx, sessionID, StatusReady, map[string]interface{}{
@@ -270,12 +270,13 @@ func (e *PushExecutor) failSession(ctx context.Context, sessionID string, err er
 }
 
 // appendOutput adds output line to session output list
-func (e *PushExecutor) appendOutput(ctx context.Context, sessionID, stream, line string) {
+func (e *PushExecutor) appendOutput(ctx context.Context, sessionID, stream, source, line string) {
 	key := rediskeys.WorkSessionOutputKey(sessionID)
 	output := map[string]interface{}{
 		"timestamp": time.Now().UnixMilli(),
 		"line":      line,
 		"stream":    stream,
+		"source":    source,
 	}
 	data, _ := json.Marshal(output)
 	e.rdb.RPush(ctx, key, string(data))

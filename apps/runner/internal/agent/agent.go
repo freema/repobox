@@ -4,8 +4,18 @@ import (
 	"context"
 )
 
+// OutputSource identifies the origin of output lines
+type OutputSource string
+
+const (
+	// SourceRunner indicates output from the runner itself (internal logs)
+	SourceRunner OutputSource = "runner"
+	// SourceClaude indicates output from Claude Code CLI
+	SourceClaude OutputSource = "claude"
+)
+
 // OutputWriter is a callback for streaming agent output
-type OutputWriter func(stream, line string)
+type OutputWriter func(stream string, source OutputSource, line string)
 
 // Agent defines the interface for AI code agents
 type Agent interface {

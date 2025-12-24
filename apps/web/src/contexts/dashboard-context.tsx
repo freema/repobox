@@ -11,6 +11,13 @@ import type { WorkSession } from "@repobox/types";
 import type { EnvironmentId } from "@/components/dashboard/environment-selector";
 
 // Types
+export interface User {
+  id: string;
+  name?: string | null;
+  email?: string | null;
+  image?: string | null;
+}
+
 export interface Repository {
   id: string;
   name: string;
@@ -24,6 +31,9 @@ export interface Repository {
 export type SessionFilter = "active" | "all";
 
 export interface DashboardState {
+  // User
+  user: User | null;
+
   // Selection
   selectedRepo: Repository | null;
   environment: EnvironmentId;
@@ -74,6 +84,7 @@ type DashboardAction =
 
 // Initial state
 const initialState: DashboardState = {
+  user: null,
   selectedRepo: null,
   environment: "default",
   sessions: [],
@@ -197,14 +208,17 @@ const DashboardContext = createContext<DashboardContextValue | null>(null);
 interface DashboardProviderProps {
   children: ReactNode;
   initialSessions?: WorkSession[];
+  user?: User;
 }
 
 export function DashboardProvider({
   children,
   initialSessions = [],
+  user,
 }: DashboardProviderProps) {
   const [state, dispatch] = useReducer(dashboardReducer, {
     ...initialState,
+    user: user || null,
     sessions: initialSessions,
     hasMoreSessions: initialSessions.length >= 20,
   });

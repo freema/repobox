@@ -37,12 +37,14 @@ export interface WorkSession {
   mrUrl?: string;
   mrWarning?: string;
   errorMessage?: string;
+  lastJobStatus?: JobStatus; // Status of the last executed job
   totalLinesAdded: number;
   totalLinesRemoved: number;
   jobCount: number;
   lastActivityAt: number;
   createdAt: number;
   pushedAt?: number;
+  prompts?: string[]; // Prompts submitted in this session
 }
 
 // Git Provider types
@@ -97,10 +99,42 @@ export interface Job {
   finishedAt?: number;
 }
 
+export type JobOutputSource = "runner" | "claude";
+
+// Claude stream-json event types
+export type ClaudeEventType = "system" | "assistant" | "user" | "result";
+export type ContentBlockType = "text" | "tool_use" | "tool_result";
+
+export interface ContentBlock {
+  type: ContentBlockType;
+  text?: string;                    // for "text" blocks
+  id?: string;                      // for "tool_use"
+  name?: string;                    // for "tool_use" (Read, Edit, Bash, etc.)
+  input?: Record<string, unknown>;  // for "tool_use"
+  tool_use_id?: string;             // for "tool_result"
+  content?: string | unknown[];     // for "tool_result" (can be string or array)
+}
+
+export interface ClaudeMessage {
+  type: ClaudeEventType;
+  subtype?: string;                 // "init", "success", "error", etc.
+  message?: {
+    role: "assistant" | "user";
+    content: ContentBlock[];
+  };
+  result?: string;
+  session_id?: string;
+  total_cost_usd?: number;
+  duration_ms?: number;
+  num_turns?: number;
+}
+
 export interface JobOutput {
   timestamp: number;
   line: string;
   stream: "stdout" | "stderr";
+  source?: JobOutputSource;         // Optional for backward compatibility
+  claude?: ClaudeMessage;           // Structured data from stream-json (future use)
 }
 
 // API Response types

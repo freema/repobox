@@ -154,8 +154,9 @@ function CuteBoxMascot() {
 }
 
 export function RightPanel() {
-  const { state } = useDashboard();
+  const { state, dispatch } = useDashboard();
   const activeSession = getActiveSession(state);
+  const [viewMode, setViewMode] = React.useState<"chat" | "terminal">("chat");
 
   // Empty state when no session is selected
   if (!activeSession) {
@@ -181,6 +182,10 @@ export function RightPanel() {
   const isStreaming =
     activeSession.status === "initializing" || activeSession.status === "running";
 
+  // Compute effective status - show "failed" if session has error even if status is "ready"
+  const hasError = !!activeSession.errorMessage || activeSession.lastJobStatus === "failed";
+  const effectiveStatus = (activeSession.status === "ready" && hasError) ? "failed" : activeSession.status;
+
   return (
     <div
       className="flex-1 flex flex-col h-full dotted-bg"
@@ -201,18 +206,74 @@ export function RightPanel() {
             {activeSession.repoName}
           </h1>
           <div className="flex items-center gap-2 shrink-0">
+            {/* View toggle: Chat / Terminal */}
+            <div
+              className="flex items-center rounded-md p-0.5"
+              style={{ backgroundColor: "var(--bg-tertiary)" }}
+            >
+              <button
+                type="button"
+                onClick={() => setViewMode("chat")}
+                className="p-1.5 rounded transition-colors"
+                style={{
+                  backgroundColor: viewMode === "chat" ? "var(--bg-hover)" : "transparent",
+                  color: viewMode === "chat" ? "var(--text-primary)" : "var(--text-muted)",
+                }}
+                title="Chat view"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("terminal")}
+                className="p-1.5 rounded transition-colors"
+                style={{
+                  backgroundColor: viewMode === "terminal" ? "var(--bg-hover)" : "transparent",
+                  color: viewMode === "terminal" ? "var(--text-primary)" : "var(--text-muted)",
+                }}
+                title="Terminal view"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 7.5l3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0021 18V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v12a2.25 2.25 0 002.25 2.25z" />
+                </svg>
+              </button>
+            </div>
+
             {isStreaming && (
               <span className="text-xs" style={{ color: "var(--text-muted)" }}>
                 Live
               </span>
             )}
-            <StatusBadge status={activeSession.status} />
+            <StatusBadge status={effectiveStatus} />
+
+            {/* Close button */}
+            <button
+              type="button"
+              onClick={() => dispatch({ type: "SET_ACTIVE_SESSION", payload: null })}
+              className="p-1.5 rounded transition-colors"
+              style={{ color: "var(--text-muted)" }}
+              title="Close session"
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--bg-hover)";
+                e.currentTarget.style.color = "var(--text-primary)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+                e.currentTarget.style.color = "var(--text-muted)";
+              }}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
         </div>
       </header>
 
       {/* Error message if failed */}
-      {activeSession.status === "failed" && activeSession.errorMessage && (
+      {hasError && activeSession.errorMessage && (
         <div
           className="shrink-0 mx-4 mt-4 p-3 rounded-lg"
           style={{
@@ -243,7 +304,7 @@ export function RightPanel() {
 
       {/* Output viewer - takes remaining space */}
       <div className="flex-1 min-h-0 p-4">
-        <ActiveSessionOutput key={activeSession.id} session={activeSession} />
+        <ActiveSessionOutput key={activeSession.id} session={activeSession} viewMode={viewMode} />
       </div>
 
       {/* Bottom action bar */}

@@ -94,11 +94,11 @@ func (e *Executor) Execute(ctx context.Context, msg *worker.JobMessage) error {
 	}
 
 	logger.Info("starting job execution")
-	e.appendOutput(jobCtx, j.ID, "stdout", "Starting job execution...")
+	e.appendOutput(jobCtx, j.ID, "stdout", "runner", "Starting job execution...")
 
 	// Clone repository
 	logger.Info("cloning repository")
-	e.appendOutput(jobCtx, j.ID, "stdout", fmt.Sprintf("Cloning %s...", j.RepoURL))
+	e.appendOutput(jobCtx, j.ID, "stdout", "runner", fmt.Sprintf("Cloning %s...", j.RepoURL))
 
 	g := git.NewWithOptions(git.Options{
 		Token:       provider.Token,
@@ -110,7 +110,7 @@ func (e *Executor) Execute(ctx context.Context, msg *worker.JobMessage) error {
 		return e.failJob(jobCtx, j.ID, fmt.Errorf("clone failed: %w", err))
 	}
 
-	e.appendOutput(jobCtx, j.ID, "stdout", "Clone completed.")
+	e.appendOutput(jobCtx, j.ID, "stdout", "runner", "Clone completed.")
 
 	// Detect default branch
 	defaultBranch, err := e.getDefaultBranch(jobCtx, repoPath)
@@ -121,7 +121,7 @@ func (e *Executor) Execute(ctx context.Context, msg *worker.JobMessage) error {
 	// Create working branch
 	branchName := fmt.Sprintf("repobox/%s", j.ID[:8])
 	logger.Info("creating branch", "branch", branchName)
-	e.appendOutput(jobCtx, j.ID, "stdout", fmt.Sprintf("Creating branch %s...", branchName))
+	e.appendOutput(jobCtx, j.ID, "stdout", "runner", fmt.Sprintf("Creating branch %s...", branchName))
 
 	if err := g.CreateBranch(jobCtx, repoPath, branchName); err != nil {
 		return e.failJob(jobCtx, j.ID, fmt.Errorf("create branch failed: %w", err))
@@ -129,11 +129,11 @@ func (e *Executor) Execute(ctx context.Context, msg *worker.JobMessage) error {
 
 	// Execute AI agent
 	logger.Info("executing AI agent", "environment", j.Environment)
-	e.appendOutput(jobCtx, j.ID, "stdout", "Executing AI agent...")
+	e.appendOutput(jobCtx, j.ID, "stdout", "runner", "Executing AI agent...")
 
 	// Create output callback that streams to Redis
-	outputCallback := func(stream, line string) {
-		e.appendOutput(jobCtx, j.ID, stream, line)
+	outputCallback := func(stream string, source agent.OutputSource, line string) {
+		e.appendOutput(jobCtx, j.ID, stream, string(source), line)
 	}
 
 	agentOpts := agent.ExecuteOptions{
@@ -150,7 +150,7 @@ func (e *Executor) Execute(ctx context.Context, msg *worker.JobMessage) error {
 
 	// Commit changes
 	logger.Info("committing changes")
-	e.appendOutput(jobCtx, j.ID, "stdout", "Committing changes...")
+	e.appendOutput(jobCtx, j.ID, "stdout", "runner", "Committing changes...")
 
 	commitMsg := fmt.Sprintf("repobox: %s", truncateString(j.Prompt, 50))
 	if err := g.Commit(jobCtx, repoPath, commitMsg); err != nil {
@@ -162,14 +162,14 @@ func (e *Executor) Execute(ctx context.Context, msg *worker.JobMessage) error {
 
 	// Push branch
 	logger.Info("pushing branch")
-	e.appendOutput(jobCtx, j.ID, "stdout", "Pushing to remote...")
+	e.appendOutput(jobCtx, j.ID, "stdout", "runner", "Pushing to remote...")
 
 	if err := g.Push(jobCtx, repoPath, branchName); err != nil {
 		return e.failJob(jobCtx, j.ID, fmt.Errorf("push failed: %w", err))
 	}
 
-	e.appendOutput(jobCtx, j.ID, "stdout", "Push completed successfully!")
-	e.appendOutput(jobCtx, j.ID, "stdout", fmt.Sprintf("Branch '%s' is ready. Create a pull request when you're satisfied with the changes.", branchName))
+	e.appendOutput(jobCtx, j.ID, "stdout", "runner", "Push completed successfully!")
+	e.appendOutput(jobCtx, j.ID, "stdout", "runner", fmt.Sprintf("Branch '%s' is ready. Create a pull request when you're satisfied with the changes.", branchName))
 
 	// Update job to success
 	updateFields := map[string]interface{}{
@@ -288,7 +288,7 @@ func (e *Executor) updateJobStatus(ctx context.Context, jobID string, status job
 
 // failJob marks a job as failed and logs the error
 func (e *Executor) failJob(ctx context.Context, jobID string, err error) error {
-	e.appendOutput(ctx, jobID, "stderr", fmt.Sprintf("Error: %s", err.Error()))
+	e.appendOutput(ctx, jobID, "stderr", "runner", fmt.Sprintf("Error: %s", err.Error()))
 
 	updateErr := e.updateJobStatus(ctx, jobID, job.StatusFailed, map[string]interface{}{
 		"finishedAt":   time.Now().UnixMilli(),
@@ -302,12 +302,13 @@ func (e *Executor) failJob(ctx context.Context, jobID string, err error) error {
 }
 
 // appendOutput adds output line to job output list
-func (e *Executor) appendOutput(ctx context.Context, jobID, stream, line string) {
+func (e *Executor) appendOutput(ctx context.Context, jobID, stream, source, line string) {
 	key := rediskeys.JobOutputKey(jobID)
 	output := map[string]interface{}{
 		"timestamp": time.Now().UnixMilli(),
 		"line":      line,
 		"stream":    stream,
+		"source":    source,
 	}
 	data, _ := json.Marshal(output)
 	e.rdb.RPush(ctx, key, string(data))

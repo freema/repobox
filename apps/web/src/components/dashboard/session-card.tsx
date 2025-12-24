@@ -15,7 +15,15 @@ export function SessionCard({ session, isActive = false, onClick }: SessionCardP
   const { dispatch } = useDashboard();
   const [isHovered, setIsHovered] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
-  const timeAgo = formatTimeAgo(session.createdAt);
+  const dateStr = formatDate(session.createdAt);
+
+  // Only show success if status is ready AND no error AND last job wasn't failed
+  const hasError = !!session.errorMessage || session.lastJobStatus === "failed";
+  const isSuccess = session.status === "pushed" ||
+    (session.status === "ready" && !hasError && session.jobCount > 0);
+
+  // Compute effective status - show "failed" if session has error even if status is "ready"
+  const effectiveStatus = (session.status === "ready" && hasError) ? "failed" : session.status;
 
   // Can archive non-terminal sessions (not already archived/pushed)
   const canArchive = session.status !== "archived" && session.status !== "pushed";
@@ -87,7 +95,7 @@ export function SessionCard({ session, isActive = false, onClick }: SessionCardP
               </svg>
             </button>
           )}
-          <StatusBadge status={session.status} size="sm" />
+          <StatusBadge status={effectiveStatus} size="sm" />
         </div>
       </div>
       <div
@@ -96,16 +104,22 @@ export function SessionCard({ session, isActive = false, onClick }: SessionCardP
       >
         <span className="truncate">{session.workBranch}</span>
         <span>•</span>
-        <span>{timeAgo}</span>
+        <span>{dateStr}</span>
+        {/* Diff stats for sessions with data */}
+        {(session.totalLinesAdded !== undefined || session.totalLinesRemoved !== undefined) && (
+          <>
+            <span>•</span>
+            <span style={{ color: "var(--diff-add)" }}>+{session.totalLinesAdded ?? 0}</span>
+            <span style={{ color: "var(--diff-remove)" }}>-{session.totalLinesRemoved ?? 0}</span>
+          </>
+        )}
+        {/* Checkmark for successful sessions */}
+        {isSuccess && (
+          <span style={{ color: "var(--success)" }}>✓</span>
+        )}
       </div>
       {session.status === "pushed" && session.mrUrl && (
         <div className="mt-1.5 flex items-center gap-2 text-xs font-mono">
-          <span style={{ color: "var(--diff-add)" }}>
-            +{session.totalLinesAdded}
-          </span>
-          <span style={{ color: "var(--diff-remove)" }}>
-            -{session.totalLinesRemoved}
-          </span>
           <span
             className="px-1.5 py-0.5 rounded text-xs"
             style={{
@@ -118,7 +132,8 @@ export function SessionCard({ session, isActive = false, onClick }: SessionCardP
           </span>
         </div>
       )}
-      {session.status === "failed" && session.errorMessage && (
+      {/* Show error for failed sessions or sessions with lastJobStatus === 'failed' */}
+      {(session.status === "failed" || hasError) && session.errorMessage && (
         <p
           className="mt-1.5 text-xs truncate"
           style={{ color: "var(--diff-remove)" }}
@@ -130,13 +145,8 @@ export function SessionCard({ session, isActive = false, onClick }: SessionCardP
   );
 }
 
-function formatTimeAgo(timestamp: number): string {
-  const seconds = Math.floor((Date.now() - timestamp) / 1000);
-
-  if (seconds < 60) return "Just now";
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
-
-  return new Date(timestamp).toLocaleDateString();
+function formatDate(timestamp: number): string {
+  const date = new Date(timestamp);
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${months[date.getMonth()]} ${date.getDate()}`;
 }

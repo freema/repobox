@@ -76,16 +76,40 @@ export function OutputViewer({
         className="flex-1 overflow-y-auto font-mono text-xs bg-neutral-900 rounded-lg p-4"
         data-testid="output-viewer"
       >
-        {lines.map((line, index) => (
-          <div
-            key={index}
-            className={`whitespace-pre-wrap break-all leading-relaxed ${
-              line.stream === "stderr" ? "text-red-400" : "text-neutral-300"
-            }`}
-          >
-            {line.line}
-          </div>
-        ))}
+        {lines.map((line, index) => {
+          // Determine line type for better styling
+          const content = line.line.toLowerCase();
+          const isError = line.stream === "stderr" || content.includes("error") || content.includes("failed");
+          const isSuccess = content.includes("success") || content.includes("completed") || content.includes("done") || content.includes("ready");
+          const isWarning = content.includes("warning") || content.includes("warn");
+          const isInfo = content.startsWith("cloning") || content.startsWith("creating") || content.startsWith("running") || content.startsWith("starting");
+
+          let textColor = "text-neutral-300";
+          let prefix = "";
+
+          if (isError) {
+            textColor = "text-red-400";
+            prefix = "✗ ";
+          } else if (isSuccess) {
+            textColor = "text-green-400";
+            prefix = "✓ ";
+          } else if (isWarning) {
+            textColor = "text-yellow-400";
+            prefix = "⚠ ";
+          } else if (isInfo) {
+            textColor = "text-blue-400";
+            prefix = "→ ";
+          }
+
+          return (
+            <div
+              key={index}
+              className={`whitespace-pre-wrap break-all leading-relaxed py-0.5 ${textColor}`}
+            >
+              {prefix}{line.line}
+            </div>
+          );
+        })}
 
         {/* Status indicators */}
         {isStreaming && (

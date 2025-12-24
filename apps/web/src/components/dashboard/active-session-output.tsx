@@ -5,12 +5,14 @@ import type { WorkSession, JobOutput } from "@repobox/types";
 import { useWorkSessionStream } from "@/hooks";
 import { useDashboard } from "@/contexts/dashboard-context";
 import { OutputViewer } from "./output-viewer";
+import { ChatView } from "./chat-view";
 
 interface ActiveSessionOutputProps {
   session: WorkSession;
+  viewMode: "chat" | "terminal";
 }
 
-export function ActiveSessionOutput({ session }: ActiveSessionOutputProps) {
+export function ActiveSessionOutput({ session, viewMode }: ActiveSessionOutputProps) {
   const { dispatch } = useDashboard();
   const [initialOutput, setInitialOutput] = useState<JobOutput[]>([]);
   const [isLoadingInitial, setIsLoadingInitial] = useState(true);
@@ -67,6 +69,17 @@ export function ActiveSessionOutput({ session }: ActiveSessionOutputProps) {
       <div className="h-full flex items-center justify-center">
         <div className="w-6 h-6 border-2 border-neutral-600 border-t-neutral-300 rounded-full animate-spin" />
       </div>
+    );
+  }
+
+  if (viewMode === "chat") {
+    return (
+      <ChatView
+        session={session}
+        lines={lines}
+        isStreaming={isStreaming}
+        isConnected={isConnected}
+      />
     );
   }
 

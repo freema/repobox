@@ -7,50 +7,66 @@ import { EnvironmentSelector } from "./environment-selector";
 interface QuickPromptCard {
   title: string;
   subtitle: string;
-  icon: React.ReactNode;
+  metrics: React.ReactNode;
+}
+
+// Animated scanning indicator
+function ScanningIndicator() {
+  return (
+    <div className="text-xs font-mono space-y-1">
+      <div className="flex items-center gap-2">
+        <span
+          className="w-2 h-2 rounded-full animate-pulse"
+          style={{ backgroundColor: "var(--warning)" }}
+        />
+        <span style={{ color: "var(--text-muted)" }}>Scanning...</span>
+      </div>
+      <div style={{ color: "var(--text-secondary)" }}>
+        Found: <span style={{ color: "var(--text-primary)" }}>3</span> issues
+      </div>
+      <div style={{ color: "var(--success)" }}>+ Fixing...</div>
+    </div>
+  );
+}
+
+// Test results indicator
+function TestResultsIndicator() {
+  return (
+    <div className="text-xs font-mono space-y-0.5">
+      <div className="flex items-center gap-2">
+        <span style={{ color: "var(--success)" }}>PASS</span>
+        <span style={{ color: "var(--success)" }}>✓</span>
+        <span style={{ color: "var(--text-primary)" }}>12</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <span style={{ color: "var(--error)" }}>FAIL</span>
+        <span style={{ color: "var(--error)" }}>×</span>
+        <span style={{ color: "var(--text-muted)" }}>0</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <span style={{ color: "var(--text-muted)" }}>SKIP</span>
+        <span style={{ color: "var(--text-muted)" }}>○</span>
+        <span style={{ color: "var(--text-muted)" }}>1</span>
+      </div>
+    </div>
+  );
 }
 
 const QUICK_PROMPTS: QuickPromptCard[] = [
   {
-    title: "Write a CLAUDE.md",
-    subtitle: "Create or update my CLAUDE.md file",
-    icon: (
-      <div
-        className="text-xs font-mono p-2 rounded"
-        style={{ backgroundColor: "var(--bg-hover)", color: "var(--text-secondary)" }}
-      >
-        <div style={{ color: "var(--accent-primary)" }}># Claude</div>
-        <div>Thoughtful AI</div>
-        <div>Answers Flow</div>
-        <div>Learning</div>
-      </div>
-    ),
+    title: "Find and fix a bug",
+    subtitle: "Search the codebase for common bug patterns, error-prone code, or FIXME comments and fix one",
+    metrics: <ScanningIndicator />,
   },
   {
-    title: "Fix a small todo",
-    subtitle: "Search for a TODO comment and fix it",
-    icon: null,
+    title: "Refactor complex code",
+    subtitle: "Find a function or component that's overly complex and refactor it for clarity while maintaining the same behavior",
+    metrics: null,
   },
   {
-    title: "Improve test coverage",
-    subtitle: "Recommend areas to improve our tests",
-    icon: (
-      <div
-        className="text-xs font-mono p-2 rounded"
-        style={{ backgroundColor: "var(--bg-hover)", color: "var(--text-secondary)" }}
-      >
-        <div>src/</div>
-        <div className="pl-2">
-          <span style={{ color: "var(--success)" }}>+</span> auth.js
-        </div>
-        <div className="pl-2">
-          <span style={{ color: "var(--warning)" }}>~</span> utils.js
-        </div>
-        <div className="pl-2">
-          <span style={{ color: "var(--error)" }}>x</span> api.js
-        </div>
-      </div>
-    ),
+    title: "Write a missing test",
+    subtitle: "Find an untested function or component and write comprehensive tests for it",
+    metrics: <TestResultsIndicator />,
   },
 ];
 
@@ -123,8 +139,8 @@ export function QuickStart() {
                 {card.subtitle}
               </p>
             </div>
-            {card.icon && (
-              <div className="shrink-0">{card.icon}</div>
+            {card.metrics && (
+              <div className="shrink-0">{card.metrics}</div>
             )}
           </button>
         ))}

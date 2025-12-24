@@ -70,11 +70,11 @@ func (e *JobExecutor) Execute(ctx context.Context, msg *JobMessage) error {
 		logger.Warn("failed to update job status", "error", err)
 	}
 
-	e.appendOutput(ctx, msg.SessionID, "stdout", fmt.Sprintf("Running prompt: %s", truncateString(msg.Prompt, 100)))
+	e.appendOutput(ctx, msg.SessionID, "stdout", "runner", fmt.Sprintf("Running prompt: %s", truncateString(msg.Prompt, 100)))
 
 	// Create output callback that streams to both session and job output
-	outputCallback := func(stream, line string) {
-		e.appendOutput(ctx, msg.SessionID, stream, line)
+	outputCallback := func(stream string, source agent.OutputSource, line string) {
+		e.appendOutput(ctx, msg.SessionID, stream, string(source), line)
 	}
 
 	// Execute AI agent
@@ -99,9 +99,9 @@ func (e *JobExecutor) Execute(ctx context.Context, msg *JobMessage) error {
 	commitMsg := fmt.Sprintf("repobox: %s", truncateString(msg.Prompt, 50))
 	if err := g.Commit(ctx, repoPath, commitMsg); err != nil {
 		// Commit might fail if no changes - that's okay
-		e.appendOutput(ctx, msg.SessionID, "stdout", "No changes to commit.")
+		e.appendOutput(ctx, msg.SessionID, "stdout", "runner", "No changes to commit.")
 	} else {
-		e.appendOutput(ctx, msg.SessionID, "stdout", "Changes committed locally.")
+		e.appendOutput(ctx, msg.SessionID, "stdout", "runner", "Changes committed locally.")
 	}
 
 	// Get diff stats against base branch
@@ -124,14 +124,16 @@ func (e *JobExecutor) Execute(ctx context.Context, msg *JobMessage) error {
 	}
 
 	if err := e.updateSessionStatus(ctx, msg.SessionID, StatusReady, map[string]interface{}{
-		"job_count":          jobCount,
+		"job_count":           jobCount,
 		"total_lines_added":   linesAdded,
 		"total_lines_removed": linesRemoved,
+		"error_message":       "", // Clear error on success
+		"last_job_status":     string(job.StatusSuccess),
 	}); err != nil {
 		logger.Warn("failed to update session status", "error", err)
 	}
 
-	e.appendOutput(ctx, msg.SessionID, "stdout", "Prompt completed. Session ready for more prompts or push.")
+	e.appendOutput(ctx, msg.SessionID, "stdout", "runner", "Prompt completed. Session ready for more prompts or push.")
 
 	logger.Info("prompt executed successfully",
 		"lines_added", linesAdded,
@@ -203,7 +205,7 @@ func (e *JobExecutor) updateSessionStatus(ctx context.Context, sessionID string,
 
 // failJob marks a job as failed
 func (e *JobExecutor) failJob(ctx context.Context, msg *JobMessage, err error) error {
-	e.appendOutput(ctx, msg.SessionID, "stderr", fmt.Sprintf("Error: %s", err.Error()))
+	e.appendOutput(ctx, msg.SessionID, "stderr", "runner", fmt.Sprintf("Error: %s", err.Error()))
 
 	// Mark job as failed
 	e.updateJobStatus(ctx, msg.JobID, job.StatusFailed, map[string]interface{}{
@@ -211,19 +213,23 @@ func (e *JobExecutor) failJob(ctx context.Context, msg *JobMessage, err error) e
 		"error_message": err.Error(),
 	})
 
-	// Session stays ready so user can try again
-	e.updateSessionStatus(ctx, msg.SessionID, StatusReady, nil)
+	// Session stays ready so user can try again, but store error info for UI
+	e.updateSessionStatus(ctx, msg.SessionID, StatusReady, map[string]interface{}{
+		"error_message":   err.Error(),
+		"last_job_status": string(job.StatusFailed),
+	})
 
 	return err
 }
 
 // appendOutput adds output line to session output list
-func (e *JobExecutor) appendOutput(ctx context.Context, sessionID, stream, line string) {
+func (e *JobExecutor) appendOutput(ctx context.Context, sessionID, stream, source, line string) {
 	key := rediskeys.WorkSessionOutputKey(sessionID)
 	output := map[string]interface{}{
 		"timestamp": time.Now().UnixMilli(),
 		"line":      line,
 		"stream":    stream,
+		"source":    source,
 	}
 	data, _ := json.Marshal(output)
 	e.rdb.RPush(ctx, key, string(data))

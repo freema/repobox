@@ -20,7 +20,11 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o /runner ./cmd/runner
 # Runtime image
 FROM alpine:3.20
 
-RUN apk add --no-cache git ca-certificates
+# Install git, certificates, Node.js and npm for Claude CLI
+RUN apk add --no-cache git ca-certificates nodejs npm
+
+# Install Claude CLI globally
+RUN npm install -g @anthropic-ai/claude-code
 
 COPY --from=builder /runner /usr/local/bin/runner
 

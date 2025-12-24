@@ -44,6 +44,15 @@ export function LeftPanel({ user }: LeftPanelProps) {
             Repobox
           </span>
         </Link>
+        <span
+          className="ml-2 text-xs px-2 py-0.5 rounded"
+          style={{
+            backgroundColor: "var(--bg-tertiary)",
+            color: "var(--text-muted)",
+          }}
+        >
+          Research preview
+        </span>
       </div>
 
       {/* New session input */}
