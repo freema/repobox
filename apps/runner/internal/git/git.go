@@ -157,7 +157,26 @@ func (g *Git) GetDiffStats(ctx context.Context, repoPath, baseBranch string) (ad
 		return 0, 0, fmt.Errorf("git diff failed: %w", err)
 	}
 
-	lines := strings.Split(string(output), "\n")
+	added, removed = parseDiffNumstat(string(output))
+	return added, removed, nil
+}
+
+// GetUncommittedDiffStats returns lines added and removed for uncommitted changes
+func (g *Git) GetUncommittedDiffStats(ctx context.Context, repoPath string) (added, removed int, err error) {
+	// Get diff stats for uncommitted changes (working tree vs index)
+	cmd := exec.CommandContext(ctx, "git", "-C", repoPath, "diff", "--numstat", "HEAD")
+	output, err := cmd.Output()
+	if err != nil {
+		return 0, 0, fmt.Errorf("git diff failed: %w", err)
+	}
+
+	added, removed = parseDiffNumstat(string(output))
+	return added, removed, nil
+}
+
+// parseDiffNumstat parses git diff --numstat output and returns total added/removed lines
+func parseDiffNumstat(output string) (added, removed int) {
+	lines := strings.Split(output, "\n")
 	for _, line := range lines {
 		if line == "" {
 			continue
@@ -177,8 +196,7 @@ func (g *Git) GetDiffStats(ctx context.Context, repoPath, baseBranch string) (ad
 			}
 		}
 	}
-
-	return added, removed, nil
+	return added, removed
 }
 
 // embedToken embeds the token into a git URL for authentication

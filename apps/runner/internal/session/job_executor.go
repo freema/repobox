@@ -90,22 +90,9 @@ func (e *JobExecutor) Execute(ctx context.Context, msg *JobMessage) error {
 		return e.failJob(ctx, msg, fmt.Errorf("agent execution failed: %w", err))
 	}
 
-	// Commit changes (no push)
-	g := git.NewWithOptions(git.Options{
-		AuthorName:  e.cfg.GitAuthorName,
-		AuthorEmail: e.cfg.GitAuthorEmail,
-	})
-
-	commitMsg := fmt.Sprintf("repobox: %s", truncateString(msg.Prompt, 50))
-	if err := g.Commit(ctx, repoPath, commitMsg); err != nil {
-		// Commit might fail if no changes - that's okay
-		e.appendOutput(ctx, msg.SessionID, "stdout", "runner", "No changes to commit.")
-	} else {
-		e.appendOutput(ctx, msg.SessionID, "stdout", "runner", "Changes committed locally.")
-	}
-
-	// Get diff stats against base branch
-	linesAdded, linesRemoved, _ := g.GetDiffStats(ctx, repoPath, "main")
+	// Get diff stats for uncommitted changes
+	g := git.New()
+	linesAdded, linesRemoved, _ := g.GetUncommittedDiffStats(ctx, repoPath)
 
 	// Update job status to success
 	if err := e.updateJobStatus(ctx, msg.JobID, job.StatusSuccess, map[string]interface{}{

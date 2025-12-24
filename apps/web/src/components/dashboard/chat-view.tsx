@@ -20,38 +20,33 @@ const TOOL_PATTERNS = [
   /^(Read|Write|Edit|Bash|Glob|Grep|Task|WebFetch|WebSearch|Search|NotebookEdit)\s+(.+)/i,
 ];
 
+// Shorten long paths from /tmp/repobox/sessions/.../repo/file to just file
+function shortenPath(fullPath: string): string {
+  const repoMatch = fullPath.match(/\/repo\/(.+)$/);
+  if (repoMatch) return repoMatch[1];
+  return fullPath.split("/").pop() || fullPath;
+}
+
 interface ToolCall {
   name: string;
   target: string;
   result?: string;
   isActive?: boolean;
+  oldString?: string; // pro Edit diff
+  newString?: string; // pro Edit diff
+}
+
+interface ConversationBlock {
+  userPrompt: string;
+  toolCalls: ToolCall[];
+  responseText: string;
 }
 
 interface ParsedOutput {
-  userPrompt: string | null;
-  toolCalls: ToolCall[];
-  responseText: string;
+  blocks: ConversationBlock[];
   errorLines: string[];
   internalLines: string[];
   currentAction: string | null;
-}
-
-// Get icon for tool type
-function getToolIcon(name: string): string {
-  const icons: Record<string, string> = {
-    Read: "📖",
-    Edit: "✏️",
-    Write: "✏️",
-    Grep: "🔍",
-    Glob: "🔍",
-    Search: "🔍",
-    Bash: "⚡",
-    WebFetch: "🌐",
-    WebSearch: "🌐",
-    Task: "📋",
-    NotebookEdit: "📓",
-  };
-  return icons[name] || "🔧";
 }
 
 // Get action verb for streaming indicator
@@ -78,48 +73,75 @@ function getActionVerb(toolName: string): string {
   }
 }
 
-// Parse output lines into structured data
+// Check if a line is a runner internal line
+function isRunnerInternalLine(line: JobOutput): boolean {
+  const text = line.line.trim();
+  return (
+    line.source === "runner" ||
+    (!line.source &&
+      (text.startsWith("Cloning") ||
+        text.startsWith("Clone completed") ||
+        text.startsWith("Creating branch") ||
+        text.startsWith("Work session ready") ||
+        text.startsWith("Running prompt:") ||
+        text.startsWith("Starting AI agent") ||
+        text.startsWith("Agent exited") ||
+        text.startsWith("Claude session:") ||
+        text.startsWith("Claude completed") ||
+        text.startsWith("Claude error") ||
+        text.startsWith("Error:") ||
+        text.startsWith("Committing") ||
+        text.startsWith("No changes") ||
+        text.startsWith("Changes committed") ||
+        text.startsWith("Prompt completed") ||
+        text.startsWith("Pushing") ||
+        text.startsWith("Push completed")))
+  );
+}
+
+// Parse output lines into structured data with multiple conversation blocks
 function parseOutput(lines: JobOutput[]): ParsedOutput {
-  const toolCalls: ToolCall[] = [];
-  const responseLines: string[] = [];
+  const blocks: ConversationBlock[] = [];
   const errorLines: string[] = [];
   const internalLines: string[] = [];
-  let userPrompt: string | null = null;
   let currentAction: string | null = null;
 
+  // Current block state
+  let currentBlock: ConversationBlock | null = null;
   let currentTool: ToolCall | null = null;
+  let currentResponseLines: string[] = [];
+
+  const finishCurrentBlock = () => {
+    if (currentBlock) {
+      // Save any pending tool
+      if (currentTool) {
+        currentBlock.toolCalls.push(currentTool);
+        currentTool = null;
+      }
+      // Save response text
+      currentBlock.responseText = currentResponseLines.join("\n");
+      blocks.push(currentBlock);
+      currentResponseLines = [];
+    }
+  };
 
   for (const line of lines) {
     const text = line.line.trim();
     if (!text) continue;
 
-    // Lines marked as runner internal
-    const isRunnerLine =
-      line.source === "runner" ||
-      (!line.source &&
-        (text.startsWith("Cloning") ||
-          text.startsWith("Clone completed") ||
-          text.startsWith("Creating branch") ||
-          text.startsWith("Work session ready") ||
-          text.startsWith("Running prompt:") ||
-          text.startsWith("Starting AI agent") ||
-          text.startsWith("Agent exited") ||
-          text.startsWith("Claude session:") ||
-          text.startsWith("Claude completed") ||
-          text.startsWith("Claude error") ||
-          text.startsWith("Error:") ||
-          text.startsWith("Committing") ||
-          text.startsWith("No changes") ||
-          text.startsWith("Changes committed") ||
-          text.startsWith("Prompt completed") ||
-          text.startsWith("Pushing") ||
-          text.startsWith("Push completed")));
-
-    if (isRunnerLine) {
-      // Extract user prompt from "Running prompt: X"
+    // Check for runner internal lines
+    if (isRunnerInternalLine(line)) {
+      // Check if this starts a new prompt
       const promptMatch = text.match(/^Running prompt:\s*(.+)$/);
       if (promptMatch) {
-        userPrompt = promptMatch[1];
+        // Finish previous block if exists
+        finishCurrentBlock();
+        // Start new block
+        currentBlock = {
+          userPrompt: promptMatch[1],
+          toolCalls: [],
+          responseText: "",
+        };
       }
       internalLines.push(text);
       continue;
@@ -131,6 +153,9 @@ function parseOutput(lines: JobOutput[]): ParsedOutput {
       continue;
     }
 
+    // If no current block, skip Claude output (shouldn't happen)
+    if (!currentBlock) continue;
+
     // Check for tool call patterns
     let isToolCall = false;
     for (const pattern of TOOL_PATTERNS) {
@@ -138,7 +163,7 @@ function parseOutput(lines: JobOutput[]): ParsedOutput {
       if (match) {
         // Save previous tool if exists
         if (currentTool) {
-          toolCalls.push(currentTool);
+          currentBlock.toolCalls.push(currentTool);
         }
 
         currentTool = {
@@ -152,10 +177,22 @@ function parseOutput(lines: JobOutput[]): ParsedOutput {
     }
 
     if (!isToolCall) {
-      // Check if this is a tool result (starts with └─)
+      // Pro Edit tool zachytit ├─ (oldString) a └─ (newString)
+      if (currentTool && currentTool.name === "Edit" && text.startsWith("├─")) {
+        currentTool.oldString = text.replace(/^├─\s*/, "").trim();
+        continue;
+      }
+      if (currentTool && currentTool.name === "Edit" && text.startsWith("└─") && !currentTool.newString) {
+        currentTool.newString = text.replace(/^└─\s*/, "").trim();
+        currentBlock.toolCalls.push(currentTool);
+        currentTool = null;
+        currentAction = null;
+        continue;
+      }
+      // Check if this is a tool result (starts with └─) - pro ostatní tools
       if (currentTool && text.startsWith("└─")) {
         currentTool.result = text.replace(/^└─\s*/, "").trim();
-        toolCalls.push(currentTool);
+        currentBlock.toolCalls.push(currentTool);
         currentTool = null;
         currentAction = null;
       } else if (
@@ -166,36 +203,138 @@ function parseOutput(lines: JobOutput[]): ParsedOutput {
       } else {
         // Save any pending tool
         if (currentTool) {
-          toolCalls.push(currentTool);
+          currentBlock.toolCalls.push(currentTool);
           currentTool = null;
         }
         // Add to response lines
-        responseLines.push(text);
+        currentResponseLines.push(text);
         currentAction = null;
       }
     }
   }
 
-  // Don't forget the last tool
-  if (currentTool) {
-    currentTool.isActive = true; // Mark as active if it's the last one
-    toolCalls.push(currentTool);
+  // Finish the last block
+  if (currentBlock) {
+    if (currentTool) {
+      currentTool.isActive = true; // Mark as active if it's the last one
+      currentBlock.toolCalls.push(currentTool);
+    }
+    currentBlock.responseText = currentResponseLines.join("\n");
+    blocks.push(currentBlock);
   }
 
-  // Join response lines into markdown text
-  const responseText = responseLines.join("\n");
-
   return {
-    userPrompt,
-    toolCalls,
-    responseText,
+    blocks,
     errorLines,
     internalLines,
     currentAction,
   };
 }
 
-// Tool Call Block Component
+// Color mapping for tool types
+const TOOL_COLORS: Record<string, string> = {
+  Read: "#3b82f6", // blue
+  Edit: "#f97316", // orange
+  Write: "#f97316", // orange
+  Bash: "#22c55e", // green
+  Glob: "#8b5cf6", // purple
+  Grep: "#8b5cf6", // purple
+  Search: "#8b5cf6", // purple
+  Task: "#ec4899", // pink
+  WebFetch: "#06b6d4", // cyan
+  WebSearch: "#06b6d4", // cyan
+  NotebookEdit: "#f97316", // orange
+};
+
+// DiffView Component - expandovatelný IDE-style diff
+function DiffView({
+  oldString,
+  newString,
+}: {
+  oldString?: string;
+  newString?: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  const oldLines = (oldString || "").split("\n");
+  const newLines = (newString || "").split("\n");
+
+  if (!expanded) {
+    return (
+      <button
+        onClick={() => setExpanded(true)}
+        className="flex items-center gap-1 px-2 py-1 text-[11px] hover:bg-[var(--bg-hover)] transition-colors w-full text-left"
+        style={{ color: "var(--text-muted)" }}
+      >
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
+        Show diff ({oldLines.length} removed, {newLines.length} added)
+      </button>
+    );
+  }
+
+  return (
+    <div className="text-[11px] font-mono">
+      <button
+        onClick={() => setExpanded(false)}
+        className="flex items-center gap-1 px-2 py-1 hover:bg-[var(--bg-hover)] transition-colors w-full text-left"
+        style={{ color: "var(--text-muted)" }}
+      >
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+        Hide diff
+      </button>
+      <div className="max-h-64 overflow-auto">
+        {/* Removed lines */}
+        {oldLines.map((line, i) => (
+          <div
+            key={`r${i}`}
+            className="flex"
+            style={{ backgroundColor: "rgba(239, 68, 68, 0.1)" }}
+          >
+            <span
+              className="w-8 text-right pr-2 select-none flex-shrink-0"
+              style={{ color: "var(--text-muted)" }}
+            >
+              {i + 1}
+            </span>
+            <span className="w-4 flex-shrink-0" style={{ color: "#f87171" }}>
+              -
+            </span>
+            <pre className="flex-1 whitespace-pre-wrap break-all" style={{ color: "#fca5a5" }}>
+              {line || " "}
+            </pre>
+          </div>
+        ))}
+        {/* Added lines */}
+        {newLines.map((line, i) => (
+          <div
+            key={`a${i}`}
+            className="flex"
+            style={{ backgroundColor: "rgba(34, 197, 94, 0.1)" }}
+          >
+            <span
+              className="w-8 text-right pr-2 select-none flex-shrink-0"
+              style={{ color: "var(--text-muted)" }}
+            >
+              {i + 1}
+            </span>
+            <span className="w-4 flex-shrink-0" style={{ color: "#4ade80" }}>
+              +
+            </span>
+            <pre className="flex-1 whitespace-pre-wrap break-all" style={{ color: "#86efac" }}>
+              {line || " "}
+            </pre>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Tool Call Block Component - minimalist design with status indicator
 function ToolCallBlock({
   tool,
   isLast,
@@ -205,41 +344,40 @@ function ToolCallBlock({
   isLast: boolean;
   isStreaming: boolean;
 }) {
-  const isActive = isLast && isStreaming && !tool.result;
-  const icon = getToolIcon(tool.name);
+  const isRunning = isLast && isStreaming && !tool.result && !tool.newString;
+  const hasResult = !!tool.result || !!tool.newString;
+  const shortPath = shortenPath(tool.target);
+  const color = TOOL_COLORS[tool.name] || "#6b7280";
+
+  // Status: running = green pulsing, done = green, pending = gray
+  const statusColor = isRunning || hasResult ? "#22c55e" : "#6b7280";
 
   return (
     <div
-      className="rounded-lg p-2 my-1 transition-all"
-      style={{
-        backgroundColor: "var(--bg-tertiary)",
-        border: isActive
-          ? "1px solid var(--accent)"
-          : "1px solid var(--border-subtle)",
-      }}
+      className="text-xs rounded font-mono"
+      style={{ backgroundColor: "var(--bg-tertiary)" }}
     >
-      <div className="flex items-center gap-2 text-sm font-mono">
-        <span>{icon}</span>
-        <span className="font-medium" style={{ color: "var(--accent)" }}>
+      {/* Header row */}
+      <div className="flex items-center gap-2 py-1.5 px-2">
+        {/* Status indicator */}
+        <span
+          className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isRunning ? "animate-pulse" : ""}`}
+          style={{ backgroundColor: statusColor }}
+        />
+        <span className="font-medium" style={{ color }}>
           {tool.name}
         </span>
         <span
           className="truncate flex-1"
           style={{ color: "var(--text-muted)" }}
         >
-          {tool.target}
+          {shortPath}
         </span>
-        {isActive && (
-          <span className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
-        )}
       </div>
-      {tool.result && (
-        <div
-          className="mt-1 text-xs pl-6 truncate"
-          style={{ color: "var(--text-muted)" }}
-        >
-          └─ {tool.result}
-        </div>
+
+      {/* Edit diff - expandovatelný IDE-style diff */}
+      {tool.name === "Edit" && (tool.oldString || tool.newString) && (
+        <DiffView oldString={tool.oldString} newString={tool.newString} />
       )}
     </div>
   );
@@ -327,6 +465,119 @@ const markdownComponents = {
   },
 };
 
+// Single conversation block component (user prompt + Claude response)
+function ConversationBlockView({
+  block,
+  user,
+  isLast,
+  isStreaming,
+}: {
+  block: ConversationBlock;
+  user: { name?: string | null; email?: string | null; image?: string | null } | null;
+  isLast: boolean;
+  isStreaming: boolean;
+}) {
+  return (
+    <>
+      {/* User Prompt - Right aligned */}
+      <div className="flex justify-end">
+        <div className="max-w-[85%] space-y-2">
+          <div
+            className="flex items-center justify-end gap-2 text-xs font-medium"
+            style={{ color: "var(--text-muted)" }}
+          >
+            {user?.name || "User"}
+            {user?.image ? (
+              <img
+                src={user.image}
+                alt={user.name || "User"}
+                className="w-6 h-6 rounded-full object-cover ring-2 ring-[var(--accent)]"
+              />
+            ) : (
+              <span
+                className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium"
+                style={{ backgroundColor: "var(--accent)", color: "white" }}
+              >
+                {(user?.name || user?.email || "U")?.[0]?.toUpperCase() || "U"}
+              </span>
+            )}
+          </div>
+          <div
+            className="rounded-2xl rounded-tr-sm px-4 py-3 text-sm shadow-md"
+            style={{
+              background:
+                "linear-gradient(135deg, var(--accent) 0%, #7c3aed 100%)",
+              color: "white",
+            }}
+          >
+            {block.userPrompt}
+          </div>
+        </div>
+      </div>
+
+      {/* Claude Response - Left aligned */}
+      {(block.toolCalls.length > 0 || block.responseText) && (
+        <div className="flex justify-start">
+          <div className="max-w-[85%] space-y-2">
+            <div
+              className="flex items-center gap-2 text-xs font-medium"
+              style={{ color: "var(--text-muted)" }}
+            >
+              <span
+                className="w-6 h-6 rounded-full flex items-center justify-center text-xs"
+                style={{
+                  background:
+                    "linear-gradient(135deg, #f97316 0%, #ea580c 100%)",
+                }}
+              >
+                <svg
+                  className="w-3.5 h-3.5 text-white"
+                  fill="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
+                </svg>
+              </span>
+              Claude
+            </div>
+
+            <div className="space-y-2">
+              {/* Tool Calls */}
+              {block.toolCalls.map((tool, i) => (
+                <ToolCallBlock
+                  key={i}
+                  tool={tool}
+                  isLast={isLast && i === block.toolCalls.length - 1}
+                  isStreaming={isStreaming}
+                />
+              ))}
+
+              {/* Response Text with Markdown */}
+              {block.responseText && (
+                <div
+                  className="rounded-2xl rounded-tl-sm px-4 py-3 text-sm shadow-sm prose prose-sm max-w-none"
+                  style={{
+                    backgroundColor: "var(--bg-tertiary)",
+                    color: "var(--text-primary)",
+                    border: "1px solid var(--border-subtle)",
+                  }}
+                >
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={markdownComponents}
+                  >
+                    {block.responseText}
+                  </ReactMarkdown>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 export function ChatView({
   session,
   lines,
@@ -343,9 +594,6 @@ export function ChatView({
 
   // Parse output into structured data
   const parsed = useMemo(() => parseOutput(lines), [lines]);
-
-  // Get prompt - prefer extracted from internal logs, fallback to session
-  const prompt = parsed.userPrompt || session.prompts?.[0] || "";
 
   // Check if there's an error - only from actual error signals, not text content
   const hasError =
@@ -383,7 +631,7 @@ export function ChatView({
     }
   }, []);
 
-  if (!prompt && lines.length === 0) {
+  if (parsed.blocks.length === 0 && lines.length === 0) {
     return (
       <div className="h-full flex items-center justify-center text-neutral-500 text-sm">
         No output yet
@@ -398,103 +646,16 @@ export function ChatView({
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto p-4 space-y-4"
       >
-        {/* User Prompt - Right aligned with prominent styling */}
-        {prompt && (
-          <div className="flex justify-end">
-            <div className="max-w-[85%] space-y-2">
-              <div
-                className="flex items-center justify-end gap-2 text-xs font-medium"
-                style={{ color: "var(--text-muted)" }}
-              >
-                {user?.name || "User"}
-                {user?.image ? (
-                  <img
-                    src={user.image}
-                    alt={user.name || "User"}
-                    className="w-6 h-6 rounded-full object-cover ring-2 ring-[var(--accent)]"
-                  />
-                ) : (
-                  <span
-                    className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium"
-                    style={{ backgroundColor: "var(--accent)", color: "white" }}
-                  >
-                    {(user?.name || user?.email || "U")[0].toUpperCase()}
-                  </span>
-                )}
-              </div>
-              <div
-                className="rounded-2xl rounded-tr-sm px-4 py-3 text-sm shadow-md"
-                style={{
-                  background:
-                    "linear-gradient(135deg, var(--accent) 0%, #7c3aed 100%)",
-                  color: "white",
-                }}
-              >
-                {prompt}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Claude Response - Left aligned */}
-        {(parsed.toolCalls.length > 0 || parsed.responseText) && (
-          <div className="flex justify-start">
-            <div className="max-w-[85%] space-y-2">
-              <div
-                className="flex items-center gap-2 text-xs font-medium"
-                style={{ color: "var(--text-muted)" }}
-              >
-                <span
-                  className="w-6 h-6 rounded-full flex items-center justify-center text-xs"
-                  style={{
-                    background:
-                      "linear-gradient(135deg, #f97316 0%, #ea580c 100%)",
-                  }}
-                >
-                  <svg
-                    className="w-3.5 h-3.5 text-white"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
-                  </svg>
-                </span>
-                Claude
-              </div>
-
-              <div className="space-y-2">
-                {/* Inline Tool Calls */}
-                {parsed.toolCalls.map((tool, i) => (
-                  <ToolCallBlock
-                    key={i}
-                    tool={tool}
-                    isLast={i === parsed.toolCalls.length - 1}
-                    isStreaming={isStreaming}
-                  />
-                ))}
-
-                {/* Response Text with Markdown */}
-                {parsed.responseText && (
-                  <div
-                    className="rounded-2xl rounded-tl-sm px-4 py-3 text-sm shadow-sm prose prose-sm max-w-none"
-                    style={{
-                      backgroundColor: "var(--bg-tertiary)",
-                      color: "var(--text-primary)",
-                      border: "1px solid var(--border-subtle)",
-                    }}
-                  >
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      components={markdownComponents}
-                    >
-                      {parsed.responseText}
-                    </ReactMarkdown>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Render all conversation blocks */}
+        {parsed.blocks.map((block, index) => (
+          <ConversationBlockView
+            key={index}
+            block={block}
+            user={user}
+            isLast={index === parsed.blocks.length - 1}
+            isStreaming={isStreaming}
+          />
+        ))}
 
         {/* Streaming indicator with action description */}
         {isStreaming && (

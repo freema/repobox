@@ -250,6 +250,24 @@ func (a *ClaudeAgent) processStreamMessage(msg *StreamMessage, stream string, ou
 				target := a.getToolTarget(block.Name, block.Input)
 				output(stream, SourceClaude, fmt.Sprintf("%s %s", block.Name, target))
 
+				// Pro Edit tool přidat old/new string pro zobrazení diffu
+				if block.Name == "Edit" {
+					if inputMap, ok := block.Input.(map[string]interface{}); ok {
+						if oldStr, ok := inputMap["old_string"].(string); ok {
+							if len(oldStr) > 2000 {
+								oldStr = oldStr[:2000] + "..."
+							}
+							output(stream, SourceClaude, fmt.Sprintf("├─ %s", oldStr))
+						}
+						if newStr, ok := inputMap["new_string"].(string); ok {
+							if len(newStr) > 2000 {
+								newStr = newStr[:2000] + "..."
+							}
+							output(stream, SourceClaude, fmt.Sprintf("└─ %s", newStr))
+						}
+					}
+				}
+
 			case "tool_result":
 				// Tool results - summarize if too long
 				content := a.formatToolResult(block.Content)

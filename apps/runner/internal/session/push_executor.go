@@ -69,14 +69,21 @@ func (e *PushExecutor) Execute(ctx context.Context, msg *PushMessage) error {
 		return e.failSession(ctx, msg.SessionID, fmt.Errorf("failed to get provider: %w", err))
 	}
 
-	e.appendOutput(ctx, msg.SessionID, "stdout", "runner", "Pushing branch to remote...")
-
-	// Push branch
+	// Commit all uncommitted changes before push
 	g := git.NewWithOptions(git.Options{
 		Token:       provider.Token,
 		AuthorName:  e.cfg.GitAuthorName,
 		AuthorEmail: e.cfg.GitAuthorEmail,
 	})
+
+	commitMsg := fmt.Sprintf("repobox: Work session %s", session.ID[:8])
+	if err := g.Commit(ctx, repoPath, commitMsg); err != nil {
+		e.appendOutput(ctx, msg.SessionID, "stdout", "runner", "No changes to commit.")
+	} else {
+		e.appendOutput(ctx, msg.SessionID, "stdout", "runner", "Changes committed.")
+	}
+
+	e.appendOutput(ctx, msg.SessionID, "stdout", "runner", "Pushing branch to remote...")
 
 	if err := g.Push(ctx, repoPath, session.WorkBranch); err != nil {
 		return e.failSession(ctx, msg.SessionID, fmt.Errorf("push failed: %w", err))
