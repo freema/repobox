@@ -28,7 +28,7 @@ func TestClaudeAgent_ExecuteMock(t *testing.T) {
 
 	// Collect output
 	var outputLines []string
-	outputCallback := func(stream, line string) {
+	outputCallback := func(stream string, source OutputSource, line string) {
 		outputLines = append(outputLines, stream+": "+line)
 	}
 
@@ -93,7 +93,7 @@ func TestClaudeAgent_ContextCancellation(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	var outputLines []string
-	outputCallback := func(stream, line string) {
+	outputCallback := func(stream string, source OutputSource, line string) {
 		outputLines = append(outputLines, stream+": "+line)
 	}
 

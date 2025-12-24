@@ -15,6 +15,7 @@ import (
 	"github.com/repobox/runner/internal/git"
 	"github.com/repobox/runner/internal/mergerequest"
 	rediskeys "github.com/repobox/runner/internal/redis"
+	"github.com/repobox/runner/internal/util"
 )
 
 // PushExecutor handles pushing work session branch and creating MR/PR
@@ -76,7 +77,7 @@ func (e *PushExecutor) Execute(ctx context.Context, msg *PushMessage) error {
 		AuthorEmail: e.cfg.GitAuthorEmail,
 	})
 
-	commitMsg := fmt.Sprintf("repobox: Work session %s", session.ID[:8])
+	commitMsg := fmt.Sprintf("repobox: Work session %s", util.SafePrefix(session.ID, 8))
 	if err := g.Commit(ctx, repoPath, commitMsg); err != nil {
 		e.appendOutput(ctx, msg.SessionID, "stdout", "runner", "No changes to commit.")
 	} else {
@@ -147,7 +148,7 @@ func (e *PushExecutor) createMergeRequest(
 	// Generate title and description
 	title := msg.Title
 	if title == "" {
-		title = fmt.Sprintf("repobox: Work session %s", session.ID[:8])
+		title = fmt.Sprintf("repobox: Work session %s", util.SafePrefix(session.ID, 8))
 	}
 
 	description := msg.Description

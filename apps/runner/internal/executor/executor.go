@@ -17,6 +17,7 @@ import (
 	"github.com/repobox/runner/internal/git"
 	"github.com/repobox/runner/internal/job"
 	rediskeys "github.com/repobox/runner/internal/redis"
+	"github.com/repobox/runner/internal/util"
 	"github.com/repobox/runner/internal/worker"
 )
 
@@ -113,13 +114,13 @@ func (e *Executor) Execute(ctx context.Context, msg *worker.JobMessage) error {
 	e.appendOutput(jobCtx, j.ID, "stdout", "runner", "Clone completed.")
 
 	// Detect default branch
-	defaultBranch, err := e.getDefaultBranch(jobCtx, repoPath)
+	defaultBranch, err := g.GetDefaultBranch(jobCtx, repoPath)
 	if err != nil {
 		defaultBranch = "main" // Fallback
 	}
 
 	// Create working branch
-	branchName := fmt.Sprintf("repobox/%s", j.ID[:8])
+	branchName := fmt.Sprintf("repobox/%s", util.SafePrefix(j.ID, 8))
 	logger.Info("creating branch", "branch", branchName)
 	e.appendOutput(jobCtx, j.ID, "stdout", "runner", fmt.Sprintf("Creating branch %s...", branchName))
 
@@ -253,12 +254,6 @@ func (e *Executor) getProviderInfo(ctx context.Context, userID, providerID strin
 	}, nil
 }
 
-// getDefaultBranch detects the default branch of the repository
-func (e *Executor) getDefaultBranch(_ context.Context, _ string) (string, error) {
-	// TODO: Implement proper detection using git symbolic-ref
-	// For now, return "main" as default
-	return "main", nil
-}
 
 // updateJobStatus updates job status in Redis
 func (e *Executor) updateJobStatus(ctx context.Context, jobID string, status job.Status, fields map[string]interface{}) error {

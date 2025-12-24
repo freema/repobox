@@ -2,11 +2,15 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"sync"
 
 	"github.com/repobox/runner/internal/job"
 )
+
+// ErrPoolStopped is returned when submitting to a stopped pool
+var ErrPoolStopped = errors.New("worker pool is stopped")
 
 // JobMessage represents a job from Redis stream
 type JobMessage struct {
@@ -25,6 +29,8 @@ type Pool struct {
 	handler JobHandler
 	wg      sync.WaitGroup
 	logger  *slog.Logger
+	mu      sync.RWMutex
+	stopped bool
 }
 
 // NewPool creates a new worker pool
@@ -46,13 +52,23 @@ func (p *Pool) Start(ctx context.Context) {
 	p.logger.Info("worker pool started", "workers", p.size)
 }
 
-// Submit adds a job to the queue
-func (p *Pool) Submit(msg *JobMessage) {
+// Submit adds a job to the queue. Returns ErrPoolStopped if pool is stopped.
+func (p *Pool) Submit(msg *JobMessage) error {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	if p.stopped {
+		return ErrPoolStopped
+	}
 	p.jobs <- msg
+	return nil
 }
 
 // Stop gracefully shuts down the pool
 func (p *Pool) Stop() {
+	p.mu.Lock()
+	p.stopped = true
+	p.mu.Unlock()
+
 	close(p.jobs)
 	p.wg.Wait()
 	p.logger.Info("worker pool stopped")
@@ -65,25 +81,37 @@ func (p *Pool) worker(ctx context.Context, id int) {
 	logger := p.logger.With("worker_id", id)
 	logger.Debug("worker started")
 
-	for msg := range p.jobs {
+	for {
 		select {
 		case <-ctx.Done():
-			logger.Info("worker stopping due to context cancellation")
+			// Context cancelled - drain remaining jobs before exiting
+			logger.Info("worker draining remaining jobs before shutdown")
+			for msg := range p.jobs {
+				p.processJob(ctx, logger, msg)
+			}
+			logger.Debug("worker finished draining")
 			return
-		default:
-		}
-
-		jobLogger := logger.With("job_id", msg.Job.ID, "user_id", msg.Job.UserID)
-		jobLogger.Info("processing job")
-
-		if err := p.handler(ctx, msg); err != nil {
-			jobLogger.Error("job failed", "error", err)
-		} else {
-			jobLogger.Info("job completed")
+		case msg, ok := <-p.jobs:
+			if !ok {
+				// Channel closed, exit
+				logger.Debug("worker finished")
+				return
+			}
+			p.processJob(ctx, logger, msg)
 		}
 	}
+}
 
-	logger.Debug("worker finished")
+// processJob handles a single job execution
+func (p *Pool) processJob(ctx context.Context, logger *slog.Logger, msg *JobMessage) {
+	jobLogger := logger.With("job_id", msg.Job.ID, "user_id", msg.Job.UserID)
+	jobLogger.Info("processing job")
+
+	if err := p.handler(ctx, msg); err != nil {
+		jobLogger.Error("job failed", "error", err)
+	} else {
+		jobLogger.Info("job completed")
+	}
 }
 
 // JobsChannel returns the jobs channel for the consumer

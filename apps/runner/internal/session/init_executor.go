@@ -14,6 +14,7 @@ import (
 	"github.com/repobox/runner/internal/crypto"
 	"github.com/repobox/runner/internal/git"
 	rediskeys "github.com/repobox/runner/internal/redis"
+	"github.com/repobox/runner/internal/util"
 )
 
 // InitExecutor handles work session initialization (clone repo, create branch)
@@ -91,7 +92,7 @@ func (e *InitExecutor) Execute(ctx context.Context, msg *InitMessage) error {
 	e.appendOutput(ctx, msg.SessionID, "stdout", "runner", "Clone completed.")
 
 	// Create work branch
-	branchName := fmt.Sprintf("repobox/%s", msg.SessionID[:8])
+	branchName := fmt.Sprintf("repobox/%s", util.SafePrefix(msg.SessionID, 8))
 	e.appendOutput(ctx, msg.SessionID, "stdout", "runner", fmt.Sprintf("Creating branch %s...", branchName))
 
 	if err := g.CreateBranch(ctx, repoPath, branchName); err != nil {

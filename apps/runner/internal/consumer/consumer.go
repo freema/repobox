@@ -51,6 +51,9 @@ func (c *Consumer) Start(ctx context.Context) error {
 		c.logger.Warn("failed to claim pending messages", "error", err)
 	}
 
+	// Start periodic claim goroutine to recover messages from user-limit-skipped jobs
+	go c.periodicClaim(ctx)
+
 	// Main consumer loop
 	for {
 		select {
@@ -182,11 +185,20 @@ func (c *Consumer) processMessage(ctx context.Context, msg redis.XMessage) error
 		return nil
 	}
 
-	// Increment user's running count
-	c.rdb.Incr(ctx, userKey)
+	// Increment user's running count with TTL for crash recovery
+	if err := c.rdb.Incr(ctx, userKey).Err(); err != nil {
+		c.logger.Error("failed to increment user counter", "user_id", jobMsg.Job.UserID, "error", err)
+		return err
+	}
+	// Set TTL to ensure counter expires if runner crashes (24h is enough for any job)
+	c.rdb.Expire(ctx, userKey, 24*time.Hour)
 
 	// Submit to worker pool
-	c.pool.Submit(jobMsg)
+	if err := c.pool.Submit(jobMsg); err != nil {
+		// Pool is stopped, decrement counter and return error
+		c.rdb.Decr(ctx, userKey)
+		return err
+	}
 
 	return nil
 }
@@ -274,11 +286,34 @@ func parseJobFromHash(data map[string]string) (*job.Job, error) {
 	return j, nil
 }
 
+// periodicClaim periodically claims pending messages that were skipped due to user limits
+func (c *Consumer) periodicClaim(ctx context.Context) {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := c.claimPendingMessages(ctx); err != nil {
+				c.logger.Debug("periodic claim failed", "error", err)
+			}
+		}
+	}
+}
+
 // AckJob acknowledges a job message and decrements user counter
 func (c *Consumer) AckJob(ctx context.Context, msg *worker.JobMessage) error {
-	// Decrement user's running count
+	// Decrement user's running count and clamp to 0
 	userKey := rediskeys.UserRunningJobsKey(msg.Job.UserID)
-	c.rdb.Decr(ctx, userKey)
+	val, err := c.rdb.Decr(ctx, userKey).Result()
+	if err != nil {
+		c.logger.Warn("failed to decrement user counter", "user_id", msg.Job.UserID, "error", err)
+	} else if val < 0 {
+		// Clamp to 0 to prevent negative values from counter desync
+		c.rdb.Set(ctx, userKey, 0, 24*time.Hour)
+	}
 
 	// ACK the stream message
 	return c.rdb.XAck(ctx, rediskeys.JobsStream, rediskeys.JobsConsumerGroup, msg.StreamID).Err()

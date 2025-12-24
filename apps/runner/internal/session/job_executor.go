@@ -106,14 +106,18 @@ func (e *JobExecutor) Execute(ctx context.Context, msg *JobMessage) error {
 	// Update session status back to ready and increment job count
 	session, _ := e.getSession(ctx, msg.SessionID)
 	jobCount := 1
+	totalAdded := linesAdded
+	totalRemoved := linesRemoved
 	if session != nil {
 		jobCount = session.JobCount + 1
+		totalAdded += session.TotalLinesAdded
+		totalRemoved += session.TotalLinesRemoved
 	}
 
 	if err := e.updateSessionStatus(ctx, msg.SessionID, StatusReady, map[string]interface{}{
 		"job_count":           jobCount,
-		"total_lines_added":   linesAdded,
-		"total_lines_removed": linesRemoved,
+		"total_lines_added":   totalAdded,
+		"total_lines_removed": totalRemoved,
 		"error_message":       "", // Clear error on success
 		"last_job_status":     string(job.StatusSuccess),
 	}); err != nil {
@@ -146,16 +150,26 @@ func (e *JobExecutor) getSession(ctx context.Context, sessionID string) (*Sessio
 		return nil, fmt.Errorf("session not found")
 	}
 
-	// Parse job count
+	// Parse numeric fields
 	jobCount := 0
+	linesAdded := 0
+	linesRemoved := 0
 	if jc, ok := data["job_count"]; ok {
 		fmt.Sscanf(jc, "%d", &jobCount)
 	}
+	if la, ok := data["total_lines_added"]; ok {
+		fmt.Sscanf(la, "%d", &linesAdded)
+	}
+	if lr, ok := data["total_lines_removed"]; ok {
+		fmt.Sscanf(lr, "%d", &linesRemoved)
+	}
 
 	return &Session{
-		ID:       data["id"],
-		Status:   Status(data["status"]),
-		JobCount: jobCount,
+		ID:                data["id"],
+		Status:            Status(data["status"]),
+		JobCount:          jobCount,
+		TotalLinesAdded:   linesAdded,
+		TotalLinesRemoved: linesRemoved,
 	}, nil
 }
 

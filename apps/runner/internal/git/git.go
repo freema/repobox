@@ -148,6 +148,41 @@ func (g *Git) Push(ctx context.Context, repoPath, branch string) error {
 	return nil
 }
 
+// GetDefaultBranch detects the default branch of the repository
+func (g *Git) GetDefaultBranch(ctx context.Context, repoPath string) (string, error) {
+	// Try to get default branch from origin/HEAD symbolic ref
+	cmd := exec.CommandContext(ctx, "git", "-C", repoPath, "symbolic-ref", "refs/remotes/origin/HEAD")
+	output, err := cmd.Output()
+	if err == nil {
+		// Output is like "refs/remotes/origin/main"
+		ref := strings.TrimSpace(string(output))
+		branch := strings.TrimPrefix(ref, "refs/remotes/origin/")
+		if branch != "" {
+			return branch, nil
+		}
+	}
+
+	// Fallback: try to detect from remote show
+	showCmd := exec.CommandContext(ctx, "git", "-C", repoPath, "remote", "show", "origin")
+	showOutput, err := showCmd.Output()
+	if err == nil {
+		// Look for "HEAD branch: main" line
+		lines := strings.Split(string(showOutput), "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "HEAD branch:") {
+				parts := strings.SplitN(line, ":", 2)
+				if len(parts) == 2 {
+					return strings.TrimSpace(parts[1]), nil
+				}
+			}
+		}
+	}
+
+	// Final fallback to "main"
+	return "main", nil
+}
+
 // GetDiffStats returns lines added and removed since branch creation
 func (g *Git) GetDiffStats(ctx context.Context, repoPath, baseBranch string) (added, removed int, err error) {
 	// Get diff stats: --numstat gives "added removed filename" per line
